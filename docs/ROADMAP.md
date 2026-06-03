@@ -86,26 +86,25 @@
 - [ ] `cosign-api/internal/identity`: users table CRUD, JWT signing/verification
 - [ ] cosign-web: login button → OAuth flow → land on `/` showing user's GitHub avatar + login
 
-### PM — Webhook receiver + installation flow
+### PM — Webhook receiver (passive inbox feed only) + installation flow
 - [ ] `GET /auth/github/install` → redirect to GitHub App install URL
 - [ ] `cosign-api/internal/gateway/webhook/`:
   - HMAC-SHA256 verify against `GITHUB_WEBHOOK_SECRET`
   - Event dispatch: `installation.created` → upsert into `installations`; `installation.deleted` → soft-delete
-  - `pull_request.opened` → log only (Flow A wiring is Day 4)
-  - `issues.assigned` → log only (Flow B wiring is Day 5)
-- [ ] Test on a throwaway test repo: install App, observe webhook lands.
-- [ ] Run sqlc to generate query code for users/installations/repositories.
+  - `pull_request.opened` / `issues.opened` → INSERT into `inbox_items` (just feeds the user's inbox, **does not** trigger agents)
+- [ ] Test on a throwaway test repo: install App, observe webhook lands and an inbox item appears.
+- [ ] Run sqlc to generate query code for users/installations/repositories/inbox_items.
 
 **Exit criterion:**
 1. User clicks "Sign in with GitHub" on cosign-web → lands back signed in.
 2. User clicks "Install Cosign on a repo" → completes install on a test repo → `installations` table has the row.
-3. Open a PR on the test repo → cosign-api logs show `pull_request.opened` webhook received and HMAC-verified.
+3. Open a PR on the test repo → cosign-api logs show `pull_request.opened` webhook HMAC-verified → inbox_items has a row → no agent runs (deliberate; agents only run when user clicks).
 
 **Risks:**
 - *Risk:* GitHub App webhook URL must be HTTPS — local dev needs a tunnel. *Mitigation:* use `cloudflared tunnel` or `ngrok http 8080`; document in setup-dev.sh.
 - *Risk:* OAuth scope decisions block fork-mode later. *Mitigation:* request `public_repo` from the start so fork-mode (Day 6) doesn't need a re-consent flow.
 
-**Parking lot:** Slash command parsing (`/cosign review`) — Day 4.
+**Parking lot:** Inbox UI polish (Day 8).
 
 ---
 
@@ -163,28 +162,30 @@
 - [ ] `cosign-worker/tools/github.py`: `get_pr_diff`, `post_pr_comment`, `update_check_run`
 - [ ] Capability check wired: agents have `capabilities.tools = ["github_ops", "file_ops", "code_exec"]`
 
-### PM — HITL gate + implementer follow-through
+### PM — User-initiated trigger + HITL gate + review-post-as-user
 - [ ] `cosign-worker/orchestration/interrupts.py`: gate helpers
 - [ ] `cosign-worker/orchestration/nodes/finalize.py`: writes interrupt + uses `graph.interrupt()` for HITL pause
 - [ ] cosign-api: SSE multiplexer subscribed to `stream:goal:{goal_id}` Redis Stream
-- [ ] cosign-api: `POST /goals/{uuid}/resume` writes decision to `interrupts`, calls gRPC `ResumeFromInterrupt`
-- [ ] cosign-web: `/goals/[id]/page.tsx` shows live event feed (basic, polish on Day 8) + `<CosignGate>` modal that renders on `gate.pending`
-- [ ] Wire Flow A trigger: `pull_request.opened` webhook → create goal → kick off reviewer
-- [ ] Wire implementer follow-through after cosign: implementer reads `interrupt.payload.suggested_changes`, applies them, pushes a commit
+- [ ] cosign-api: `POST /goals/{uuid}/resume` writes decision + edited_review to `interrupts`, calls gRPC `ResumeFromInterrupt`
+- [ ] cosign-web: `/repos/[owner]/[repo]/pulls/[n]` page with `[Review with Cosign]` button + live event feed (basic, polish on Day 8) + `<ReviewEditor>` modal that renders on `gate.pending` (inline-editable review draft)
+- [ ] cosign-web: also wire `/review?pr_url=...` for the "Review any PR" flow (paste any PR URL)
+- [ ] Wire Flow A trigger: button click → `POST /goals { type:"pr_review", pr_url }` → kick off reviewer
+- [ ] On cosign: cosign-api POSTs the (possibly user-edited) review on the PR via the **user's OAuth token** so the review is attributed to the user, not a bot
 
 **Exit criterion (Flow A end-to-end):**
-1. Open a PR on a repo with App installed.
-2. cosign-api receives webhook → creates goal → kicks off reviewer agent.
-3. Reviewer runs in sandbox → produces review → `gate.pending` event fires.
-4. cosign-web shows the modal with the review artifact.
-5. User clicks "Cosign & implement" → implementer agent runs → pushes a commit to the PR branch.
-6. Bot comment on the PR links to the cosign event.
+1. User signs in, opens a PR in the Cosign UI (or pastes a PR URL).
+2. User clicks [Review with Cosign].
+3. Reviewer agent runs in sandbox → produces review draft → `gate.pending` event fires.
+4. cosign-web shows the ReviewEditor modal with the draft inline.
+5. User tweaks two lines → clicks [Cosign].
+6. Review posts on the PR on GitHub — authored by the user (their avatar, their handle), **not** a bot account.
 
 **Risks:**
-- *Risk:* Implementer's test-run inside sandbox is slow on a real repo. *Mitigation:* time-box exec at 60s; surface test failure to human via a follow-up interrupt rather than blocking.
+- *Risk:* Implementer's test-run inside sandbox is slow on a real repo. *Mitigation:* time-box exec at 60s; surface test failure to user via a follow-up interrupt rather than blocking.
 - *Risk:* Reviewer hallucinates files that don't exist. *Mitigation:* file_ops returns clear "not found" errors; system prompt explicitly forbids inventing paths.
+- *Risk:* OAuth scope insufficient to post a review on a public repo. *Mitigation:* `public_repo` scope (already requested Day 2) covers `POST /repos/{owner}/{repo}/pulls/{n}/reviews`; verify on Day 2 EOD with a manual API call.
 
-**Parking lot:** `/cosign review` slash command (can ship Day 5 if time).
+**Parking lot:** Implementer follow-through (auto-applying suggestions and pushing a commit) — moved to a Day-9 stretch since Flow A's main differentiator is the **user-authored review**, not the auto-commit. If the user wants to apply suggestions, they can click [Resolve with Cosign] on a follow-up issue/PR.
 
 ---
 
@@ -209,23 +210,25 @@
   - Loop control: `should_continue(state) -> Literal["implementer","exit"]`
 - [ ] Per-round DB writes: each implementer turn and each critic turn writes/updates a row in `critic_iterations`
 - [ ] SSE events: `iteration.implementer` (with round + self_satisfaction) and `iteration.critic` (with round + feedback)
-- [ ] Wire Flow B trigger: `issues.assigned` webhook with assignee=`cosign[bot]` → create goal type=`issue_implement` → kick off critic_loop_subgraph
+- [ ] Wire Flow B trigger: cosign-web `/repos/[owner]/[repo]/issues/[n]` page with `[Resolve with Cosign]` button + optional steering note → `POST /goals { type:"issue_implement", issue_url, steer? }` → kick off critic_loop_subgraph
+- [ ] Also wire `/resolve?issue_url=...` for paste-any-issue flow
 - [ ] At loop exit: write the gate interrupt with payload containing the full transcript + final diff
 - [ ] cosign-web: `<TranscriptViewer>` component (raw / collapsible blocks; polish Day 8) + integrate into CosignGate
+- [ ] On cosign: push branch + open PR via the **user's OAuth token** (own repo direct or upstream-from-fork if Day 6 fork-mode is ready)
 
 **Exit criterion (Flow B end-to-end):**
-1. Assign an issue on a test repo to `cosign[bot]`.
-2. Webhook fires → goal created → critic loop starts.
-3. SSE feed in the web UI shows implementer round 0 (with self_satisfaction score) → critic round 0 → implementer round 1 → ... until exit.
+1. User opens an issue in the Cosign UI (or pastes an issue URL).
+2. User clicks [Resolve with Cosign], optionally adds a steering note.
+3. SSE feed shows implementer round 0 (with self_satisfaction score) → critic round 0 → implementer round 1 → ... until exit.
 4. Gate appears with the transcript + final diff.
-5. User cosigns → PR opens upstream.
+5. User cosigns → PR opens on GitHub authored by the user.
 
 **Risks:**
 - *Risk:* loop never converges (self_satisfaction stays low for buggy implementer). *Mitigation:* max_iters cap (default 5) hard-stops the loop; gate always surfaces eventually.
 - *Risk:* critic and implementer disagree forever (loop oscillates). *Mitigation:* include prior iterations in implementer's prompt so it sees its own history; if score *decreases* across two rounds, force-exit with that observation surfaced.
 - *Risk:* transcript gets large (token-wise) and the cosign payload bloats the SSE event. *Mitigation:* SSE event includes only `iteration_count` + summary; client fetches full transcript via `GET /goals/{id}/transcript` on gate open.
 
-**Parking lot:** `/cosign steer <text>` mid-loop injection (post-hackathon if needed).
+**Parking lot:** [Steer] button to inject mid-loop feedback in the UI (post-hackathon if not reached during PM).
 
 ---
 
@@ -270,36 +273,49 @@
 
 ---
 
-## Day 7 — Mon Jun 08 — Caching + Observability + Comparison Page
+## Day 7 — Mon Jun 08 — Cost Optimization (caching + per-role routing) + Observability
 
-**AM theme:** L2 provider prompt cache + 4 Redis app caches
-**PM theme:** `/metrics` + audit log writes + competitive comparison page
+**AM theme:** Caching (5 layers) + per-role LLM routing config
+**PM theme:** Cost dashboard in UI + `/metrics` + audit log writes + comparison page
 
-### AM — Caching
-- [ ] `cosign-worker/llm/prompt_cache.py`: Anthropic `cache_control` wrapper per ARCHITECTURE §5.1; OpenAI auto-cache just needs stable prefix
+### AM — Caching + Per-Role Routing (the cost-optimization story)
+- [ ] `cosign-worker/llm/prompt_cache.py`: Anthropic `cache_control` wrapper per ARCHITECTURE §5.1; OpenAI auto-cache stable prefix audit
 - [ ] Audit every system prompt to ensure static-first / dynamic-last ordering
 - [ ] `cosign-worker/cache/llm_exact.py`: Redis wrapper per ARCHITECTURE §5.2
 - [ ] `cosign-worker/cache/tool_output.py`: per-tool TTLs; `BaseTool.cacheable` opt-in
 - [ ] `cosign-worker/cache/plan.py`: 12h TTL on planning calls
 - [ ] `cosign-worker/tools/github.py`: ETag cache wired (send `If-None-Match`, handle 304)
-- [ ] Multi-provider routing: Anthropic primary, Groq fast, OpenAI fallback. Provider health in Redis.
+- [ ] **`cosign-worker/llm/router.py`: per-role LLM router per ARCHITECTURE §5.7**
+  - Load `config/llm-routing.yaml` at startup
+  - `router.acall(role="plan_node" | "critic" | "implementer" | "reviewer", tool=..., messages=...)`
+  - Per-role API keys via env-var resolution
+  - Health-tracked fallback chains per role (Redis-backed)
+- [ ] **Wire each LangGraph node + each tool through the router** (no direct `litellm.acompletion` calls anywhere outside `llm/router.py`)
+- [ ] **Default routing config to ship:** plan_node → Claude Haiku · critic → Groq Llama 3.3 70B · implementer/reviewer → Claude Sonnet 4.6 · diff_analysis → Haiku · repo_map/lint/test_runner → `provider: none` (local-only)
+- [ ] Cost tracking: every `messages` row records `tokens_in`, `tokens_out`, `cached_tokens`, `cost_usd` (use LiteLLM's `completion_cost` helper)
 
-### PM — Observability + audit log + comparison page
+### PM — Cost dashboard + Observability + Audit + Comparison page
+- [ ] **Per-goal cost breakdown SQL view** (ARCHITECTURE §5.8); exposed via `GET /goals/{uuid}` as `cost_breakdown`
+- [ ] **cosign-web: goal-detail page shows cost-by-role bar at the top** (e.g., `plan $0.003 · critic $0.008 · implementer $0.052 · tools $0.004 = $0.067`)
+- [ ] **cosign-web: `/cost` dashboard page** — running total $/goal across all goals; cache hit rate; cost-mix ratio (cheap models ÷ premium models)
 - [ ] Wire Prometheus `/metrics` on cosign-api (chi-prometheus) and cosign-worker (prometheus-fastapi-instrumentator)
-- [ ] All metrics in ARCHITECTURE §11.2 exposed
+- [ ] Add cost metrics: `cosign_worker_goal_cost_usd_sum{role}`, `cosign_worker_cache_hits_total{cache}`, `cosign_worker_llm_tokens_total{provider,model,direction,cached}`
 - [ ] Audit log writes: every gateway action, every tool call, every cosign, every goal status change
 - [ ] cosign-web: `/audit` page with table + filters (goal, actor, event_type, date range) + JSONL export
 - [ ] cosign-web: `/compare` page with the competitive table from PRD §5 (server-rendered, no live data)
-- [ ] (Optional, if AM ran fast) basic Grafana dashboard with cache hit rate + LLM cost per goal
 
 **Exit criterion:**
-1. Run a goal once → run an identical goal → second run shows cache hit logs and ≥50% reduction in LLM input tokens visible in `/metrics`.
-2. `/audit` page renders the full event log for a recent goal.
-3. `/compare` page renders the competitive table.
+1. Run a goal once → run an identical goal → second run shows ≥50% input-token reduction and **≥50% lower $/goal** in the UI cost bar.
+2. Same Flow B goal run with single-Sonnet routing benchmarks at ~$0.45; with default routing benchmarks at <$0.10. Both numbers visible in the UI.
+3. `/cost` dashboard renders the running totals.
+4. `/audit` page renders the full event log for a recent goal.
+5. `/compare` page renders the competitive table including the new cost rows.
 
 **Risks:**
 - *Risk:* Anthropic cache breakpoint placement wrong → no hits. *Mitigation:* explicit logging of `cache_read_input_tokens` from response; fail loud if hit rate is 0 after 3 runs.
 - *Risk:* ETag cache returns stale data (GitHub edge cache disagrees with our cache). *Mitigation:* 5min TTL is short enough that drift is bounded; bypass on `X-Cache-Bypass`.
+- *Risk:* Per-role routing config drift — config + code disagree on role names. *Mitigation:* unit test that every role string referenced in any node appears in `llm-routing.yaml`.
+- *Risk:* Groq rate limits during demo. *Mitigation:* fallback chain (Groq → Haiku → OpenAI mini) declared in routing config; verify failover on a manual triggered 429.
 
 **Parking lot:** Grafana dashboard (Cut Line #1 if behind), Jaeger tracing (post-hackathon).
 
@@ -354,37 +370,40 @@
 Recorded as a single take if possible. Narration over screen capture.
 
 **0:00–0:15 — Opening (15s)**
-> "Cosign is a HITL collaboration platform. AI agents do the work, AI critiques itself, you cosign one approval. Two flows. Four innovations. Watch."
+> "Cosign is a web app for developers. AI drafts your code reviews and your issue fixes. You always edit and cosign before anything ships — under your name, not a bot's. Watch."
 
-**0:15–0:45 — Flow A: Cosign as UX primitive (30s)**
-- Open the dashboard. Click an open PR on a test repo with the App installed.
-- Live event feed scrolls as reviewer agent runs.
-- Gate modal appears with the structured review.
-- Click [Cosign & implement]. Implementer agent runs. Commit pushed. Bot comment on PR.
+**0:15–0:45 — Flow A: User-initiated PR review, posted as the user (30s)**
+- Open the Cosign dashboard. Click on an open PR from the inbox (or paste any PR URL).
+- Click [Review with Cosign]. Live event feed scrolls as the reviewer agent runs.
+- ReviewEditor opens with a structured draft inline. Edit two lines.
+- Click [Cosign]. Cut to GitHub: the review now appears on the PR — **authored by the user**, no bot account visible. Highlight that detail.
 
 **0:45–2:15 — Flow B: Critic-loop with self-satisfaction (90s)**
-- Open an issue tagged `good-first-issue` on the same repo. Assign to cosign[bot].
+- Open an issue tagged `good-first-issue` in the Cosign UI.
+- Click [Resolve with Cosign], type a short steering note.
 - Event feed shows round 0 implementer → score 0.62.
 - Critic round 0 → feedback about missing edge cases.
 - Round 1 implementer → score 0.78.
 - Critic round 1 → feedback about test coverage.
 - Round 2 implementer → score 0.91 → loop exits.
-- Gate appears with full transcript viewer. Expand a round. Show the diff evolved.
-- Click [Cosign & open PR]. PR opens on GitHub.
+- Gate appears with full TranscriptViewer. Expand a round. Show how the diff evolved.
+- Click [Cosign & open PR]. Cut to GitHub: PR opens, **authored by the user**.
 
 **2:15–3:00 — Fork-mode for upstream OSS (45s)**
-- Paste a URL to a popular repo the user doesn't own.
-- UI: "Cosign App isn't installed here. We'll fork and open a PR upstream from your account."
+- Paste a URL to a popular upstream repo the user doesn't own (e.g., a one-line typo on a popular README).
+- UI: "This repo isn't in your installations. We'll fork it to your account and open the PR upstream from your fork."
 - OAuth prompt (if first time).
-- Fork created on the user's account. Implementer runs. Gate appears. Cosign.
-- PR opens upstream from the fork, authored by the user.
+- Fork created. Implementer runs. Gate appears. Cosign.
+- Cut to GitHub: PR opens upstream from the user's fork, authored by the user.
 
-**3:00–3:30 — Caching savings (30s)**
-- Re-run an earlier goal.
-- `/metrics` page: cache hit rate jumps; LLM input tokens drop ~70%; $$ per goal visualized.
+**3:00–3:30 — Cost story: caching + per-role routing (30s)**
+- Open `/cost` dashboard. Show running totals across goals.
+- Open the Flow B goal from 0:45. Cost bar at top: `plan $0.003 (Haiku) · critic $0.008 (Llama) · implementer $0.052 (Sonnet) · tools $0.004 = $0.067 total`.
+- Toggle the dev-only "what if everything ran on Sonnet" button: cost jumps to $0.45 — **~6.5× more**.
+- Voiceover: "Competitors charge $20–500/dev/month. Cosign is open-source, you bring your own keys, and you see exactly what each goal cost. Cheap models do the cheap work."
 
 **3:30–end — Outro (≤30s)**
-> "Three services. Eight days. Open source from day one. Repo and docs at github.com/.../cosign."
+> "User-initiated. Cosigned by you. Posted as you. ~6× cheaper. Open source from day one. Repo and docs at github.com/.../cosign."
 
 ---
 
@@ -392,11 +411,14 @@ Recorded as a single take if possible. Narration over screen capture.
 
 | # | Cut | When triggered | Effort saved | Demo cost |
 |---|---|---|---|---|
-| 1 | Day 7 PM: drop `/compare` page from UI; keep table in README only | End of Day 7 if AM caching ran long | ~2 hrs | Low |
+| 1 | Day 7 PM: drop `/compare` page from UI; keep table in README only | End of Day 7 if AM caching+routing ran long | ~2 hrs | Low |
 | 2 | Day 8 AM: drop transcript viewer polish; show raw JSON expandable | End of Day 7 if Day 7 PM ran long | ~3 hrs | Medium (transcript is the differentiator UX) |
 | 3 | Day 6: ship App-only on 10 Jun; defer fork-mode to Day 9 stretch | If Day 5 spilled over | ~6 hrs | High (kills Scenario 2 of the demo) |
 | 4 | Day 5: critic-loop becomes single critic pass (no loop) | Last resort | ~4 hrs | Very High (kills the strongest innovation) |
-| 5 | Day 7 PM: drop audit log; ship only cache metrics | If Day 7 AM ran long | ~2 hrs | Medium |
+| 5 | Day 7 PM: drop audit log; ship cache + cost metrics only | If Day 7 AM ran long | ~2 hrs | Medium |
+| 6 | Day 7 AM: ship per-role routing with hardcoded defaults (no YAML config file) | If routing wiring blows up | ~2 hrs | Low (cost story still works; just less operator-friendly) |
+
+**Do NOT cut:** the 5-layer cache stack and per-role routing entrypoint. These are core to the cost-savings selling point in PRD §1.2 point 6 and the demo's 3:00–3:30 segment. If Day 7 is fundamentally blocked, the right move is to descope the comparison/audit pages first.
 
 **Cut order discipline:** never cut Day 4 (Flow A) or Day 3 (sandbox + agent). Those are existential. Cut order respects: kill polish before killing features; kill secondary innovations before killing core ones.
 
