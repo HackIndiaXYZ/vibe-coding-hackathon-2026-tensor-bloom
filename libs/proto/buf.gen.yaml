@@ -1,0 +1,12 @@
+version: v2
+# Go output is written relative to the module root declared by go_package, with
+# paths=source_relative so files land at services/cosign-api/internal/pb/.
+managed:
+  enabled: false
+plugins:
+  - local: protoc-gen-go
+    out: ../../services/cosign-api/internal/pb
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: ../../services/cosign-api/internal/pb
+    opt: paths=source_relative

@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package cosign.orchestration.v1;
+
+// Go code is generated into the cosign-api module (the only Go service).
+// Python code is generated separately into cosign-worker (see its Makefile),
+// which ignores this option.
+option go_package = "github.com/tensor-bloom/cosign/services/cosign-api/internal/pb;pb";
+
+// ── OrchestrationService ──────────────────────────────────────────────────────
+// Implemented by cosign-worker (Python). Called by cosign-api (Go) to drive
+// agent runs. See ARCHITECTURE §3 (Data Flow).
+service OrchestrationService {
+  // Start a goal: load it, build the LangGraph thread, run until the first
+  // HITL gate or completion. Returns immediately (work continues async; the
+  // browser follows progress over SSE).
+  rpc SubmitGoal(SubmitGoalRequest) returns (SubmitGoalResponse);
+
+  // Resume a goal suspended at a HITL gate after the human cosigns / revises /
+  // rejects.
+  rpc ResumeFromInterrupt(ResumeFromInterruptRequest) returns (ResumeFromInterruptResponse);
+
+  // Cancel a running goal and clean up its sandbox.
+  rpc CancelGoal(CancelGoalRequest) returns (CancelGoalResponse);
+}
+
+// ── IdentityService ───────────────────────────────────────────────────────────
+// Implemented by cosign-api (Go). Called by cosign-worker (Python) to check
+// agent capabilities, fetch the invoking user's OAuth token, and emit audit
+// events. See ARCHITECTURE §9.2 + §7.1.
+service IdentityService {
+  // Per-tool capability gate. Every tool call checks this before executing.
+  rpc VerifyCapability(VerifyCapabilityRequest) returns (VerifyCapabilityResponse);
+
+  // Decrypt + return the user's GitHub OAuth token so the worker can act AS the
+  // user (never a bot). Used at goal start and before GitHub writes.
+  rpc GetUserOAuthToken(GetUserOAuthTokenRequest) returns (GetUserOAuthTokenResponse);
+
+  // Append an audit-log row (tool calls, state changes).
+  rpc EmitAuditLog(EmitAuditLogRequest) returns (EmitAuditLogResponse);
+}
+
+// ── Orchestration messages ────────────────────────────────────────────────────
+message SubmitGoalRequest {
+  string goal_uuid = 1;
+}
+message SubmitGoalResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message ResumeFromInterruptRequest {
+  string goal_uuid = 1;
+  string decision = 2;          // "approve" | "revise" | "reject"
+  string feedback = 3;          // free text for revise/steer (optional)
+  // Edited review JSON (Flow A) the human cosigned, if any. Opaque to the worker.
+  string edited_payload_json = 4;
+}
+message ResumeFromInterruptResponse {
+  bool accepted = 1;
+  string message = 2;
+}
+
+message CancelGoalRequest {
+  string goal_uuid = 1;
+}
+message CancelGoalResponse {
+  bool cancelled = 1;
+}
+
+// ── Identity messages ─────────────────────────────────────────────────────────
+message VerifyCapabilityRequest {
+  int64 agent_id = 1;
+  string tool_name = 2;
+}
+message VerifyCapabilityResponse {
+  bool allowed = 1;
+  string reason = 2;
+}
+
+message GetUserOAuthTokenRequest {
+  int64 user_id = 1;
+}
+message GetUserOAuthTokenResponse {
+  string oauth_token = 1;       // plaintext, decrypted in cosign-api memory
+  string github_login = 2;
+}
+
+message EmitAuditLogRequest {
+  string actor_type = 1;        // "user" | "agent" | "system"
+  int64 actor_id = 2;
+  string event_type = 3;
+  string goal_uuid = 4;
+  string payload_json = 5;
+}
+message EmitAuditLogResponse {
+  bool ok = 1;
+}

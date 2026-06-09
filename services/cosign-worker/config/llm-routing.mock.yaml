@@ -1,0 +1,42 @@
+# All-mock routing for keyless dev / CI. Every role returns a synthetic response
+# so the full graph runs with no provider API keys. Point LLM_ROUTING_CONFIG at
+# this file to use it.
+defaults:
+  provider: mock
+  model: mock-default
+  mock_response: '{"ok": true}'
+  mock_cost_usd: 0.0001
+
+roles:
+  plan_node:
+    provider: mock
+    model: mock-plan
+    mock_response: '{"steps": ["read", "edit", "test"]}'
+    mock_cost_usd: 0.0001
+  implementer:
+    provider: mock
+    model: mock-implementer
+    mock_response: '{"diff": "--- a\n+++ b\n", "self_satisfaction": 0.9}'
+    mock_cost_usd: 0.0005
+  reviewer:
+    provider: mock
+    model: mock-reviewer
+    mock_response: '{"summary": "looks fine", "risk_score": 0.2, "per_file_comments": [], "ask_changes": [], "praise": ["clean"]}'
+    mock_cost_usd: 0.0005
+  critic:
+    provider: mock
+    model: mock-critic
+    mock_response: '{"blocking_issues": [], "suggestions": ["add a test"], "score": 0.9, "rationale": "ok"}'
+    mock_cost_usd: 0.0001
+
+tools:
+  diff_analysis:
+    provider: mock
+    model: mock-diff
+    mock_response: '{"hunks": [], "dangerous": false}'
+  repo_map:
+    provider: none
+  lint:
+    provider: none
+  test_runner:
+    provider: none
