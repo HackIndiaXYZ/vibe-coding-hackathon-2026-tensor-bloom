@@ -113,3 +113,25 @@ SELECT * FROM agents WHERE id = $1;
 INSERT INTO audit_log (actor_type, actor_id, event_type, goal_id, payload_json, payload_hash)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
+
+-- ── User LLM settings (routing overrides + BYO provider keys) ──────────────────
+-- name: GetUserRouting :one
+SELECT routing_json FROM user_llm_settings WHERE user_id = $1;
+
+-- name: UpsertUserRouting :exec
+INSERT INTO user_llm_settings (user_id, routing_json, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (user_id) DO UPDATE
+  SET routing_json = EXCLUDED.routing_json, updated_at = NOW();
+
+-- name: ListUserProviderKeys :many
+SELECT provider, api_key_encrypted FROM user_provider_keys WHERE user_id = $1 ORDER BY provider;
+
+-- name: UpsertUserProviderKey :exec
+INSERT INTO user_provider_keys (user_id, provider, api_key_encrypted, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (user_id, provider) DO UPDATE
+  SET api_key_encrypted = EXCLUDED.api_key_encrypted, updated_at = NOW();
+
+-- name: DeleteUserProviderKey :exec
+DELETE FROM user_provider_keys WHERE user_id = $1 AND provider = $2;

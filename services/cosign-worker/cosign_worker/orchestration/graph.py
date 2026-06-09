@@ -136,7 +136,8 @@ def _make_cancel_goal(ctx):
 async def _bootstrap_runtime(ctx, goal) -> dict:
     """Fetch the user's OAuth token + (for issue flow) clone the repo into a sandbox."""
     rt: dict = {"login": "", "token": "", "handle": None,
-                "implementer_agent_id": 1, "reviewer_agent_id": 2}
+                "implementer_agent_id": 1, "reviewer_agent_id": 2,
+                "routing": {}, "provider_keys": {}}
     # user OAuth token (acts AS the user). Best-effort: missing api/keys -> mock dev run.
     if ctx.identity is not None:
         try:
@@ -144,9 +145,32 @@ async def _bootstrap_runtime(ctx, goal) -> dict:
             rt["token"], rt["login"] = token, login
         except Exception as e:  # noqa: BLE001
             log.warning("token fetch failed; continuing without (dev/mock)", err=str(e))
+        # per-user LLM routing overrides + BYO provider keys
+        try:
+            routing, keys = await ctx.identity.get_user_llm_settings(goal.user_id)
+            rt["routing"], rt["provider_keys"] = routing, keys
+            if routing:
+                log.info("user llm overrides", roles=list(routing.keys()))
+        except Exception as e:  # noqa: BLE001
+            log.warning("llm settings fetch failed; using operator config", err=str(e))
 
     if goal.type == "issue_implement" and rt["token"] and goal.repo_full_name:
         owner, repo = goal.repo_full_name.split("/", 1)
+        from ..tools.base import ToolContext
+        from ..tools.github import GithubTool
+
+        tctx = ToolContext(events=ctx.events, goal_uuid=goal.uuid)
+        gh = GithubTool(tctx, rt["token"])
+
+        # 1. fetch the issue so the implementer knows WHAT to build
+        if goal.issue_number:
+            try:
+                issue = await gh.get_issue(owner, repo, goal.issue_number)
+                rt["issue_title"], rt["issue_body"] = issue["title"], issue["body"]
+            except Exception as e:  # noqa: BLE001
+                log.warning("issue fetch failed", err=str(e))
+
+        # 2. clone the repo so it can read + edit real files
         repo_url = f"https://github.com/{owner}/{repo}.git"
         try:
             handle = await ctx.sandbox.start(
@@ -154,8 +178,18 @@ async def _bootstrap_runtime(ctx, goal) -> dict:
                 repo_url=repo_url, branch="", github_token=rt["token"], timeout_s=120,
             )
             rt["handle"] = handle
+            # 3. map the repo so the implementer is grounded in the codebase
+            from ..tools.repo_map import RepoMapTool
+
+            rmap = await RepoMapTool(
+                ToolContext(sandbox=ctx.sandbox, events=ctx.events, goal_uuid=goal.uuid), handle
+            ).run()
+            rt["repo_map"] = {
+                "files": rmap["files"][:60],
+                "symbols": dict(list(rmap["symbols"].items())[:30]),
+            }
         except Exception as e:  # noqa: BLE001
-            log.warning("sandbox clone failed; continuing without", err=str(e))
+            log.warning("clone/repo_map failed; continuing without", err=str(e))
     return rt
 
 
@@ -167,7 +201,10 @@ async def _run(ctx, goal_uuid: str) -> None:
     try:
         rt = await _bootstrap_runtime(ctx, goal)
         ctx.runtime[goal_uuid] = rt
-        branch = f"cosign/issue-{goal.issue_number}" if goal.issue_number else "cosign/work"
+        # Unique branch per goal so re-runs on the same issue don't collide on the
+        # remote (which causes a non-fast-forward "fetch first" push rejection).
+        suffix = goal.uuid[:6]
+        branch = f"cosign/issue-{goal.issue_number}-{suffix}" if goal.issue_number else f"cosign/work-{suffix}"
         initial: dict = {
             "goal_id": goal.id, "goal_uuid": goal.uuid, "goal_type": goal.type,
             "user_id": goal.user_id, "repo_full_name": goal.repo_full_name,
@@ -177,6 +214,13 @@ async def _run(ctx, goal_uuid: str) -> None:
             "current_round": 0, "max_iters": _DEFAULT_MAX_ITERS, "threshold": _DEFAULT_THRESHOLD,
             "diff": "", "self_satisfaction": 0.0, "critic_feedback": {}, "misc": {},
         }
+        # Surface mock-vs-real so the UI can show a MOCK MODE banner.
+        role = "reviewer" if goal.type == "pr_review" else "implementer"
+        provider = ctx.router.effective_provider(role, overrides=rt.get("routing"))
+        await ctx.events.publish(goal_uuid, "run.started", {
+            "type": goal.type, "mock": provider == "mock",
+            "provider": provider, "model": ctx.router.effective_model(role, overrides=rt.get("routing")),
+        })
         config = {"configurable": {"thread_id": goal_uuid}}
         await ctx.graph.ainvoke(initial, config)  # runs to the gate (interrupt) or END
     except Exception as e:  # noqa: BLE001

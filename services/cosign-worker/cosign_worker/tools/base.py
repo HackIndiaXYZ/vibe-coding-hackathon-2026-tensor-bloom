@@ -7,8 +7,10 @@ unit-testable without gRPC).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,6 +26,7 @@ class ToolContext:
     identity: IdentityClient | None = None
     redis: Any = None
     sandbox: Any = None  # SandboxDriver
+    events: Any = None  # EventPublisher — live tool-call stream
     # current actor for capability + audit
     agent_id: int = 0
     goal_uuid: str = ""
@@ -54,6 +57,38 @@ class BaseTool:
             ok = await self.ctx.identity.verify_capability(self.ctx.agent_id, self.name)
             if not ok:
                 raise CapabilityError(f"agent {self.ctx.agent_id} not permitted to call {self.name}")
+
+    async def _emit(self, event: str, data: dict) -> None:
+        if self.ctx.events is not None and self.ctx.goal_uuid:
+            try:
+                await self.ctx.events.publish(self.ctx.goal_uuid, event, data)
+            except Exception:  # noqa: BLE001 — live events are best-effort
+                pass
+
+    @contextlib.asynccontextmanager
+    async def track(self, label: str, detail: str = ""):
+        """Publish task.tool_call (start) + task.tool_result (end) around a tool op.
+
+        Yield a mutable `step` dict; set step["summary"] to a short human result.
+        Best-effort: never breaks the wrapped operation.
+        """
+        step: dict[str, Any] = {"summary": ""}
+        start = time.monotonic()
+        await self._emit("task.tool_call", {"tool": self.name, "label": label, "detail": detail, "status": "start"})
+        try:
+            yield step
+        except Exception as e:  # noqa: BLE001 — re-raised after emitting
+            await self._emit("task.tool_result", {
+                "tool": self.name, "label": label, "status": "error",
+                "summary": str(e)[:200], "duration_ms": int((time.monotonic() - start) * 1000),
+            })
+            raise
+        else:
+            await self._emit("task.tool_result", {
+                "tool": self.name, "label": label, "status": "ok",
+                "summary": str(step.get("summary", ""))[:200],
+                "duration_ms": int((time.monotonic() - start) * 1000),
+            })
 
     async def _audit(self, event: str, payload: dict) -> None:
         if self.ctx.identity and self.ctx.agent_id:

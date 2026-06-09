@@ -96,6 +96,20 @@ func (q *Queries) CreateInterrupt(ctx context.Context, arg CreateInterruptParams
 	return i, err
 }
 
+const deleteUserProviderKey = `-- name: DeleteUserProviderKey :exec
+DELETE FROM user_provider_keys WHERE user_id = $1 AND provider = $2
+`
+
+type DeleteUserProviderKeyParams struct {
+	UserID   int64  `json:"user_id"`
+	Provider string `json:"provider"`
+}
+
+func (q *Queries) DeleteUserProviderKey(ctx context.Context, arg DeleteUserProviderKeyParams) error {
+	_, err := q.db.Exec(ctx, deleteUserProviderKey, arg.UserID, arg.Provider)
+	return err
+}
+
 const getAgentByID = `-- name: GetAgentByID :one
 SELECT id, uuid, role, display_name, capabilities, capability_hash, active, created_at FROM agents WHERE id = $1
 `
@@ -261,6 +275,18 @@ func (q *Queries) GetUserOAuthToken(ctx context.Context, id int64) (GetUserOAuth
 	var i GetUserOAuthTokenRow
 	err := row.Scan(&i.GithubLogin, &i.GithubOauthTokenEncrypted)
 	return i, err
+}
+
+const getUserRouting = `-- name: GetUserRouting :one
+SELECT routing_json FROM user_llm_settings WHERE user_id = $1
+`
+
+// ── User LLM settings (routing overrides + BYO provider keys) ──────────────────
+func (q *Queries) GetUserRouting(ctx context.Context, userID int64) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getUserRouting, userID)
+	var routing_json []byte
+	err := row.Scan(&routing_json)
+	return routing_json, err
 }
 
 const goalCostBreakdown = `-- name: GoalCostBreakdown :many
@@ -526,6 +552,35 @@ func (q *Queries) ListTasksByGoal(ctx context.Context, goalID int64) ([]Task, er
 	return items, nil
 }
 
+const listUserProviderKeys = `-- name: ListUserProviderKeys :many
+SELECT provider, api_key_encrypted FROM user_provider_keys WHERE user_id = $1 ORDER BY provider
+`
+
+type ListUserProviderKeysRow struct {
+	Provider        string `json:"provider"`
+	ApiKeyEncrypted []byte `json:"api_key_encrypted"`
+}
+
+func (q *Queries) ListUserProviderKeys(ctx context.Context, userID int64) ([]ListUserProviderKeysRow, error) {
+	rows, err := q.db.Query(ctx, listUserProviderKeys, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserProviderKeysRow
+	for rows.Next() {
+		var i ListUserProviderKeysRow
+		if err := rows.Scan(&i.Provider, &i.ApiKeyEncrypted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resolveInterrupt = `-- name: ResolveInterrupt :exec
 UPDATE interrupts
 SET decision = $2, feedback = $3, actor_user_id = $4, resolved_at = NOW()
@@ -634,4 +689,39 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 		&i.LastLoginAt,
 	)
 	return i, err
+}
+
+const upsertUserProviderKey = `-- name: UpsertUserProviderKey :exec
+INSERT INTO user_provider_keys (user_id, provider, api_key_encrypted, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (user_id, provider) DO UPDATE
+  SET api_key_encrypted = EXCLUDED.api_key_encrypted, updated_at = NOW()
+`
+
+type UpsertUserProviderKeyParams struct {
+	UserID          int64  `json:"user_id"`
+	Provider        string `json:"provider"`
+	ApiKeyEncrypted []byte `json:"api_key_encrypted"`
+}
+
+func (q *Queries) UpsertUserProviderKey(ctx context.Context, arg UpsertUserProviderKeyParams) error {
+	_, err := q.db.Exec(ctx, upsertUserProviderKey, arg.UserID, arg.Provider, arg.ApiKeyEncrypted)
+	return err
+}
+
+const upsertUserRouting = `-- name: UpsertUserRouting :exec
+INSERT INTO user_llm_settings (user_id, routing_json, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (user_id) DO UPDATE
+  SET routing_json = EXCLUDED.routing_json, updated_at = NOW()
+`
+
+type UpsertUserRoutingParams struct {
+	UserID      int64  `json:"user_id"`
+	RoutingJson []byte `json:"routing_json"`
+}
+
+func (q *Queries) UpsertUserRouting(ctx context.Context, arg UpsertUserRoutingParams) error {
+	_, err := q.db.Exec(ctx, upsertUserRouting, arg.UserID, arg.RoutingJson)
+	return err
 }

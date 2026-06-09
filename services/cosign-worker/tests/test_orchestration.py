@@ -96,14 +96,21 @@ async def test_flow_b_runs_to_gate_then_finalizes():
         result = await ctx.graph.ainvoke(initial, config)
         assert "__interrupt__" in result  # suspended at the gate
 
-        # transcript persisted (mock implementer self_satisfaction 0.9 >= 0.85 -> 1 round)
+        # mock implementer now EVOLVES: score climbs 0.60 -> 0.78 -> 0.96 across
+        # rounds, so the loop iterates ~3 rounds before crossing the 0.85 threshold.
         async with pool.acquire() as c:
             rounds = await c.fetch(
                 "SELECT round_number, self_satisfaction FROM critic_iterations WHERE goal_id=$1 ORDER BY round_number",
                 goal_id,
             )
-            assert len(rounds) >= 1
-            assert float(rounds[0]["self_satisfaction"]) == pytest.approx(0.9)
+            assert len(rounds) >= 3
+            assert float(rounds[0]["self_satisfaction"]) == pytest.approx(0.60)
+            assert float(rounds[-1]["self_satisfaction"]) >= 0.85
+            # diffs evolve between rounds (the revisions feature)
+            diffs = await c.fetch(
+                "SELECT implementer_diff FROM critic_iterations WHERE goal_id=$1 ORDER BY round_number", goal_id
+            )
+            assert diffs[0]["implementer_diff"] != diffs[1]["implementer_diff"]
             gate = await c.fetchrow(
                 "SELECT type FROM interrupts WHERE goal_id=$1 AND resolved_at IS NULL", goal_id
             )

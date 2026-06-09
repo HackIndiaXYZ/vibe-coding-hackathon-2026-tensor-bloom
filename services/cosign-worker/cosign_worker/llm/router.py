@@ -40,6 +40,15 @@ class ProviderNoneError(ValueError):
     """Raised when a role/tool is configured as provider: none."""
 
 
+# Provider -> the env var holding the operator's key (used when a user picks a
+# provider but supplies no BYO key of their own).
+_DEFAULT_KEY_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+}
+
+
 class LLMRouter:
     def __init__(self, routing_config: dict, *, pool=None, redis=None) -> None:
         self.cfg = routing_config or {}
@@ -47,7 +56,14 @@ class LLMRouter:
         self._redis = redis
 
     # ── resolution ───────────────────────────────────────────────────────────
-    def _resolve(self, role: str | None, tool: str | None) -> dict:
+    def _override_spec(self, ov: dict) -> dict:
+        return {
+            "provider": ov["provider"],
+            "model": ov["model"],
+            "api_key_env": _DEFAULT_KEY_ENV.get(ov["provider"], ""),
+        }
+
+    def _operator_spec(self, role: str | None, tool: str | None) -> dict:
         tools = self.cfg.get("tools", {})
         roles = self.cfg.get("roles", {})
         if tool and tool in tools and tools[tool]:
@@ -56,8 +72,38 @@ class LLMRouter:
             return roles[role]
         return self.cfg.get("defaults", {})
 
+    def _resolve(self, role: str | None, tool: str | None, overrides: dict | None = None) -> dict:
+        """Precedence: explicit user override[tool|role] > deterministic 'none' >
+        user "_default" (use-for-all-roles) > operator config."""
+        if overrides:
+            for key in (tool, role):
+                ov = overrides.get(key) if key else None
+                if ov and ov.get("provider") and ov.get("model"):
+                    return self._override_spec(ov)
+
+        op = self._operator_spec(role, tool)
+        # deterministic tools (repo_map/lint/test_runner) never get an LLM
+        if op.get("provider") == "none":
+            return op
+        # the user's single "default for all roles" applies to anything not set
+        if overrides:
+            d = overrides.get("_default")
+            if d and d.get("provider") and d.get("model"):
+                return self._override_spec(d)
+        return op
+
     def is_none(self, role: str | None = None, tool: str | None = None) -> bool:
         return self._resolve(role, tool).get("provider") == "none"
+
+    def effective_provider(self, role: str | None = None, tool: str | None = None,
+                           overrides: dict | None = None) -> str:
+        """The provider/model that WOULD be used — for surfacing mock vs real."""
+        spec = self._resolve(role, tool, overrides)
+        return spec.get("provider", "")
+
+    def effective_model(self, role: str | None = None, tool: str | None = None,
+                        overrides: dict | None = None) -> str:
+        return self._resolve(role, tool, overrides).get("model", "")
 
     # ── main call ────────────────────────────────────────────────────────────
     async def acall(
@@ -69,9 +115,11 @@ class LLMRouter:
         task_id: int | None = None,
         temperature: float | None = None,
         max_tokens: int = 2048,
+        overrides: dict | None = None,
+        key_overrides: dict | None = None,
         **kw: Any,
     ) -> LLMResult:
-        spec = self._resolve(role, tool)
+        spec = self._resolve(role, tool, overrides)
         if spec.get("provider") == "none":
             raise ProviderNoneError(f"role={role} tool={tool} configured as 'none'")
 
@@ -85,6 +133,14 @@ class LLMRouter:
                 return cached
 
         chain = [spec, *spec.get("fallback", [])]
+        # Safety net: a user override has no fallback of its own, so if it errors
+        # (rate limit, bad key, provider down) fall back to the operator config for
+        # this role — and ultimately to its fallbacks — instead of failing the goal.
+        if overrides:
+            op = self._resolve(role, tool)  # operator config, ignoring overrides
+            if op.get("provider") not in (None, "none"):
+                chain += [op, *op.get("fallback", [])]
+
         last_err: Exception | None = None
         for s in chain:
             provider = s.get("provider")
@@ -92,7 +148,7 @@ class LLMRouter:
                 if provider == "mock":
                     result = self._mock(s, messages)
                 else:
-                    result = await self._litellm(s, messages, temperature, max_tokens, **kw)
+                    result = await self._litellm(s, messages, temperature, max_tokens, key_overrides, **kw)
             except Exception as e:  # noqa: BLE001 — try next provider
                 last_err = e
                 log.warning("llm provider failed", provider=provider, err=str(e))
@@ -110,19 +166,21 @@ class LLMRouter:
     # ── provider backends ────────────────────────────────────────────────────
     async def _litellm(
         self, spec: dict, messages: list[dict], temperature: float | None,
-        max_tokens: int, **kw: Any,
+        max_tokens: int, key_overrides: dict | None = None, **kw: Any,
     ) -> LLMResult:
         from litellm import acompletion
 
         provider = spec["provider"]
         model = spec["model"]
-        api_key = os.environ.get(spec.get("api_key_env", ""), "")
+        # BYO user key wins; else operator env key.
+        api_key = (key_overrides or {}).get(provider) or os.environ.get(spec.get("api_key_env", ""), "")
         resp = await acompletion(
             model=f"{provider}/{model}",
             api_key=api_key or None,
             messages=messages,
             temperature=spec.get("temperature", temperature if temperature is not None else 0.2),
             max_tokens=max_tokens,
+            num_retries=2,  # litellm backs off on transient 429/5xx before we fall through
             **kw,
         )
         choice = resp.choices[0]

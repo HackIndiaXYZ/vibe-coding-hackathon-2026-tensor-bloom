@@ -86,6 +86,10 @@ class RepoMapTool(BaseTool):
 
     async def run(self) -> dict:
         await self._guard()
+        async with self.track("map repo") as step:
+            return await self._run(step)
+
+    async def _run(self, step) -> dict:
         files = await self.ctx.sandbox.list_files(
             self.handle, self.handle.workspace_path, recursive=True
         )
@@ -102,4 +106,5 @@ class RepoMapTool(BaseTool):
             syms = extract_symbols(lang, src)
             if syms:
                 symbols[path] = syms
+        step["summary"] = f"{len(code_files)} files · {sum(len(v) for v in symbols.values())} symbols"
         return {"files": code_files, "symbols": symbols}

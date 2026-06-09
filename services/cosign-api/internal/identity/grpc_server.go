@@ -59,6 +59,30 @@ func (s *GRPCServer) GetUserOAuthToken(ctx context.Context, req *pb.GetUserOAuth
 	}, nil
 }
 
+// GetUserLLMSettings returns the user's routing overrides + decrypted provider
+// keys (BYO). Same trust boundary as GetUserOAuthToken.
+func (s *GRPCServer) GetUserLLMSettings(ctx context.Context, req *pb.GetUserLLMSettingsRequest) (*pb.GetUserLLMSettingsResponse, error) {
+	resp := &pb.GetUserLLMSettingsResponse{ProviderKeys: map[string]string{}}
+	if raw, err := s.Q.GetUserRouting(ctx, req.UserId); err == nil && len(raw) > 0 {
+		resp.RoutingJson = string(raw)
+	} else {
+		resp.RoutingJson = "{}"
+	}
+	rows, err := s.Q.ListUserProviderKeys(ctx, req.UserId)
+	if err != nil {
+		return resp, nil // no keys is fine
+	}
+	for _, row := range rows {
+		plain, err := s.Crypto.Decrypt(row.ApiKeyEncrypted)
+		if err != nil {
+			s.Log.Warn("decrypt provider key failed", "provider", row.Provider, "err", err)
+			continue
+		}
+		resp.ProviderKeys[row.Provider] = string(plain)
+	}
+	return resp, nil
+}
+
 // EmitAuditLog appends an audit row.
 func (s *GRPCServer) EmitAuditLog(ctx context.Context, req *pb.EmitAuditLogRequest) (*pb.EmitAuditLogResponse, error) {
 	var goalID *int64

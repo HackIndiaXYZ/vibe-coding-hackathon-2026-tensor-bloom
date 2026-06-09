@@ -39,6 +39,18 @@ class IdentityClient:
         resp = await stub.GetUserOAuthToken(pb2.GetUserOAuthTokenRequest(user_id=user_id))
         return resp.oauth_token, resp.github_login
 
+    async def get_user_llm_settings(self, user_id: int) -> tuple[dict, dict]:
+        """Return (routing_overrides, provider_keys) for BYO model selection."""
+        import json
+
+        stub = await self._ensure()
+        resp = await stub.GetUserLLMSettings(pb2.GetUserLLMSettingsRequest(user_id=user_id))
+        try:
+            routing = json.loads(resp.routing_json or "{}")
+        except json.JSONDecodeError:
+            routing = {}
+        return routing, dict(resp.provider_keys)
+
     async def emit_audit_log(
         self, *, actor_type: str, actor_id: int, event_type: str, goal_uuid: str, payload: dict
     ) -> None:

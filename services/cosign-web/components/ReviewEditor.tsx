@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { ReviewDraft } from "@/lib/types";
 
-// Inline-editable Flow A review draft. The user tweaks wording, then cosigns;
-// the (edited) review posts on the PR AS THE USER.
+// Inline-editable Flow A review draft. You tweak wording, then cosign; the
+// edited review posts on the PR AS YOU.
 export function ReviewEditor({
   initial,
   onChange,
@@ -21,45 +21,38 @@ export function ReviewEditor({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <label className="block">
-        <span className="text-xs font-medium text-neutral-500">Summary</span>
+        <span className="label">summary</span>
         <textarea
-          className="mt-1 w-full rounded border border-neutral-300 bg-transparent p-2 text-sm dark:border-neutral-700"
+          className="field mt-1 resize-y"
           rows={3}
           value={draft.summary}
           onChange={(e) => update({ summary: e.target.value })}
         />
       </label>
 
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-xs font-medium text-neutral-500">Risk</span>
+      <div className="flex items-center gap-3">
+        <span className="label">risk</span>
         <input
           type="range" min={0} max={1} step={0.05}
           value={draft.risk_score}
           onChange={(e) => update({ risk_score: Number(e.target.value) })}
+          className="flex-1 accent-[var(--cyan)]"
         />
-        <span className="tabular-nums">{draft.risk_score.toFixed(2)}</span>
+        <span className="mono text-xs tabular-nums text-[var(--cyan)]">{draft.risk_score.toFixed(2)}</span>
       </div>
 
-      <EditableList
-        label="Requested changes"
-        items={draft.ask_changes}
-        onChange={(ask_changes) => update({ ask_changes })}
-      />
-      <EditableList
-        label="Praise"
-        items={draft.praise}
-        onChange={(praise) => update({ praise })}
-      />
+      <EditableList label="requested changes" items={draft.ask_changes} onChange={(ask_changes) => update({ ask_changes })} />
+      <EditableList label="praise" items={draft.praise} onChange={(praise) => update({ praise })} />
 
       {draft.per_file_comments.length > 0 && (
         <div>
-          <span className="text-xs font-medium text-neutral-500">Per-file comments</span>
-          <ul className="mt-1 space-y-1 text-sm">
+          <span className="label">per-file comments</span>
+          <ul className="mt-1 space-y-1">
             {draft.per_file_comments.map((c, i) => (
-              <li key={i} className="rounded bg-neutral-100 p-2 dark:bg-neutral-800">
-                <code className="text-xs text-neutral-500">
+              <li key={i} className="border border-[var(--line)] bg-[var(--ink-2)] p-2">
+                <code className="mono text-xs text-[var(--cyan)]">
                   {c.path}{c.line ? `:${c.line}` : ""}
                 </code>
                 <input
@@ -91,12 +84,12 @@ function EditableList({
 }) {
   return (
     <div>
-      <span className="text-xs font-medium text-neutral-500">{label}</span>
+      <span className="label">{label}</span>
       <div className="mt-1 space-y-1">
         {items.map((it, i) => (
           <input
             key={i}
-            className="w-full rounded border border-neutral-300 bg-transparent p-1.5 text-sm dark:border-neutral-700"
+            className="field"
             value={it}
             onChange={(e) => {
               const next = [...items];
@@ -105,11 +98,7 @@ function EditableList({
             }}
           />
         ))}
-        <button
-          type="button"
-          className="text-xs text-neutral-500 hover:underline"
-          onClick={() => onChange([...items, ""])}
-        >
+        <button type="button" className="label hover:text-[var(--cyan)]" onClick={() => onChange([...items, ""])}>
           + add
         </button>
       </div>

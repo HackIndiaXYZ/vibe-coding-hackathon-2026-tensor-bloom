@@ -51,17 +51,20 @@ class GithubTool(BaseTool):
     # ── reads ────────────────────────────────────────────────────────────────
     async def get_pr_diff(self, owner: str, repo: str, number: int) -> str:
         await self._guard()
-        key = self._cache_key({"op": "pr_diff", "owner": owner, "repo": repo, "n": number})
-        if (hit := await self._cache_get(key)) is not None:
-            return hit["diff"]
-        gh = self._client()
-        resp = await gh.arequest(
-            "GET", f"/repos/{owner}/{repo}/pulls/{number}",
-            headers={"Accept": "application/vnd.github.diff"},
-        )
-        diff = resp.text
-        await self._cache_put(key, {"diff": diff})
-        return diff
+        async with self.track("fetch PR diff", detail=f"{owner}/{repo}#{number}") as step:
+            key = self._cache_key({"op": "pr_diff", "owner": owner, "repo": repo, "n": number})
+            if (hit := await self._cache_get(key)) is not None:
+                step["summary"] = "cached"
+                return hit["diff"]
+            gh = self._client()
+            resp = await gh.arequest(
+                "GET", f"/repos/{owner}/{repo}/pulls/{number}",
+                headers={"Accept": "application/vnd.github.diff"},
+            )
+            diff = resp.text
+            step["summary"] = f"{len(diff.splitlines())} lines"
+            await self._cache_put(key, {"diff": diff})
+            return diff
 
     async def get_pr_meta(self, owner: str, repo: str, number: int) -> dict:
         await self._guard()
@@ -78,9 +81,11 @@ class GithubTool(BaseTool):
 
     async def get_issue(self, owner: str, repo: str, number: int) -> dict:
         await self._guard()
-        gh = self._client()
-        issue = (await gh.rest.issues.async_get(owner, repo, number)).parsed_data
-        return {"title": issue.title, "body": issue.body or "", "number": number}
+        async with self.track("fetch issue", detail=f"{owner}/{repo}#{number}") as step:
+            gh = self._client()
+            issue = (await gh.rest.issues.async_get(owner, repo, number)).parsed_data
+            step["summary"] = (issue.title or "")[:60]
+            return {"title": issue.title, "body": issue.body or "", "number": number}
 
     async def get_file(self, owner: str, repo: str, path: str, ref: str = "") -> str:
         await self._guard()
@@ -106,12 +111,14 @@ class GithubTool(BaseTool):
         self, owner: str, repo: str, *, title: str, head: str, base: str, body: str
     ) -> dict:
         await self._guard()
-        gh = self._client()
-        pr = (await gh.rest.pulls.async_create(
-            owner, repo, title=title, head=head, base=base, body=body
-        )).parsed_data
-        await self._audit("github_open_pr", {"owner": owner, "repo": repo, "url": pr.html_url})
-        return {"url": pr.html_url, "number": pr.number}
+        async with self.track("open PR", detail=f"{owner}/{repo}") as step:
+            gh = self._client()
+            pr = (await gh.rest.pulls.async_create(
+                owner, repo, title=title, head=head, base=base, body=body
+            )).parsed_data
+            step["summary"] = f"#{pr.number} opened"
+            await self._audit("github_open_pr", {"owner": owner, "repo": repo, "url": pr.html_url})
+            return {"url": pr.html_url, "number": pr.number}
 
     async def post_pr_review(
         self, owner: str, repo: str, number: int, *, body: str, event: str = "COMMENT"

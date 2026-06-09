@@ -6,6 +6,8 @@ import type {
   GoalDetail,
   GoalSummary,
   ResumeRequest,
+  RouteChoice,
+  SettingsResponse,
   User,
 } from "./types";
 
@@ -43,6 +45,12 @@ export const api = {
   resume: (uuid: string, body: ResumeRequest) =>
     req<{ ok: boolean }>(`/goals/${uuid}/resume`, { method: "POST", body: JSON.stringify(body) }),
   cancel: (uuid: string) => req<{ ok: boolean }>(`/goals/${uuid}`, { method: "DELETE" }),
+
+  getSettings: () => req<SettingsResponse>("/settings"),
+  putRouting: (routing: Record<string, RouteChoice>) =>
+    req<{ ok: boolean }>("/settings/routing", { method: "PUT", body: JSON.stringify({ routing }) }),
+  putProviderKey: (provider: string, api_key: string) =>
+    req<{ ok: boolean }>("/settings/keys", { method: "PUT", body: JSON.stringify({ provider, api_key }) }),
 };
 
 export const streamUrl = (uuid: string) => `${API_BASE}/stream/goals/${uuid}`;

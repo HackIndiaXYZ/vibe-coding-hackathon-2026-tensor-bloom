@@ -16,9 +16,11 @@ class CodeExecTool(BaseTool):
 
     async def run(self, cmd: list[str], *, cwd: str | None = None, timeout_s: int = 30) -> dict:
         await self._guard()
-        res = await self.ctx.sandbox.exec(self.handle, cmd, cwd=cwd, timeout_s=timeout_s)
-        await self._audit("code_exec", {"cmd": cmd, "exit": res.exit_code})
-        return {"exit_code": res.exit_code, "stdout": res.stdout, "stderr": res.stderr}
+        async with self.track("exec", detail=" ".join(cmd)[:80]) as step:
+            res = await self.ctx.sandbox.exec(self.handle, cmd, cwd=cwd, timeout_s=timeout_s)
+            step["summary"] = f"{cmd[0]} · exit {res.exit_code}"
+            await self._audit("code_exec", {"cmd": cmd, "exit": res.exit_code})
+            return {"exit_code": res.exit_code, "stdout": res.stdout, "stderr": res.stderr}
 
 
 class FileOpsTool(BaseTool):
@@ -36,8 +38,10 @@ class FileOpsTool(BaseTool):
 
     async def write(self, path: str, content: str) -> None:
         await self._guard()
-        await self.ctx.sandbox.write_file(self.handle, path, content.encode())
-        await self._audit("file_write", {"path": path, "bytes": len(content)})
+        async with self.track("write file", detail=path) as step:
+            await self.ctx.sandbox.write_file(self.handle, path, content.encode())
+            step["summary"] = f"wrote {path} ({len(content)} B)"
+            await self._audit("file_write", {"path": path, "bytes": len(content)})
 
     async def delete(self, path: str) -> None:
         await self._guard()

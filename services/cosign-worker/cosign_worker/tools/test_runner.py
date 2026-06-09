@@ -39,15 +39,18 @@ class TestRunnerTool(BaseTool):
 
     async def run(self, *, timeout_s: int = 120) -> dict:
         await self._guard()
-        cmd = await self._detect()
-        if cmd is None:
-            return {"detected": False, "passed": None, "command": None, "output": "no test command detected"}
-        res = await self.ctx.sandbox.exec(self.handle, cmd, timeout_s=timeout_s)
-        passed = res.exit_code == 0
-        await self._audit("test_runner", {"command": cmd, "passed": passed})
-        return {
-            "detected": True,
-            "passed": passed,
-            "command": " ".join(cmd),
-            "output": (res.stdout + "\n" + res.stderr)[-4000:],
-        }
+        async with self.track("run tests") as step:
+            cmd = await self._detect()
+            if cmd is None:
+                step["summary"] = "no test command detected"
+                return {"detected": False, "passed": None, "command": None, "output": "no test command detected"}
+            res = await self.ctx.sandbox.exec(self.handle, cmd, timeout_s=timeout_s)
+            passed = res.exit_code == 0
+            step["summary"] = f"{cmd[0]} · {'passed' if passed else 'failed'}"
+            await self._audit("test_runner", {"command": cmd, "passed": passed})
+            return {
+                "detected": True,
+                "passed": passed,
+                "command": " ".join(cmd),
+                "output": (res.stdout + "\n" + res.stderr)[-4000:],
+            }

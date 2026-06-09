@@ -32,6 +32,71 @@ def test_is_none():
     assert r.is_none(role="implementer") is False
 
 
+def test_user_override_wins_over_operator_config():
+    r = LLMRouter(MOCK_CFG)
+    spec = r._resolve("implementer", None, overrides={"implementer": {"provider": "groq", "model": "llama-x"}})
+    assert spec["provider"] == "groq"
+    assert spec["model"] == "llama-x"
+    assert spec["api_key_env"] == "GROQ_API_KEY"  # derived default env
+
+
+def test_incomplete_override_falls_back_to_config():
+    r = LLMRouter(MOCK_CFG)
+    spec = r._resolve("implementer", None, overrides={"implementer": {"provider": "groq"}})  # no model
+    assert spec["model"] == "impl"  # operator role config
+
+
+def test_user_default_applies_to_unset_roles():
+    r = LLMRouter(MOCK_CFG)
+    ov = {"_default": {"provider": "groq", "model": "llama-3.3-70b-versatile"}}
+    # plan_node has no explicit override -> uses the user default
+    spec = r._resolve("plan_node", None, overrides=ov)
+    assert spec["provider"] == "groq" and spec["model"] == "llama-3.3-70b-versatile"
+    # deterministic tool stays deterministic (default must NOT apply)
+    assert r._resolve(None, "repo_map", overrides=ov)["provider"] == "none"
+
+
+def test_explicit_override_beats_user_default():
+    r = LLMRouter(MOCK_CFG)
+    ov = {
+        "_default": {"provider": "groq", "model": "llama"},
+        "implementer": {"provider": "openai", "model": "gpt-4o"},
+    }
+    assert r._resolve("implementer", None, overrides=ov)["provider"] == "openai"
+    assert r._resolve("critic", None, overrides=ov)["provider"] == "groq"  # falls to default
+
+
+@pytest.mark.asyncio
+async def test_override_falls_back_to_operator_on_failure(monkeypatch):
+    # user override -> a provider that errors (rate limit). Must fall back to the
+    # operator config for the role instead of failing.
+    r = LLMRouter(MOCK_CFG)
+
+    async def boom(*a, **k):
+        raise RuntimeError("rate_limit_error")
+
+    monkeypatch.setattr(r, "_litellm", boom)
+    res = await r.acall(
+        role="implementer",
+        messages=[{"role": "user", "content": "x"}],
+        overrides={"implementer": {"provider": "anthropic", "model": "claude-sonnet-4-6"}},
+    )
+    assert res.provider == "mock"  # fell back to operator config (mock)
+
+
+@pytest.mark.asyncio
+async def test_byo_key_used_when_present():
+    # mock provider ignores keys, but verify acall threads overrides without error
+    r = LLMRouter(MOCK_CFG)
+    res = await r.acall(
+        role="implementer",
+        messages=[{"role": "user", "content": "x"}],
+        overrides={"implementer": {"provider": "mock", "model": "m"}},
+        key_overrides={"mock": "sk-test"},
+    )
+    assert res.provider == "mock"
+
+
 @pytest.mark.asyncio
 async def test_provider_none_raises():
     r = LLMRouter(MOCK_CFG)

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13orchestration.proto\x12\x17\x63osign.orchestration.v1\"&\n\x11SubmitGoalRequest\x12\x11\n\tgoal_uuid\x18\x01 \x01(\t\"7\n\x12SubmitGoalResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"p\n\x1aResumeFromInterruptRequest\x12\x11\n\tgoal_uuid\x18\x01 \x01(\t\x12\x10\n\x08\x64\x65\x63ision\x18\x02 \x01(\t\x12\x10\n\x08\x66\x65\x65\x64\x62\x61\x63k\x18\x03 \x01(\t\x12\x1b\n\x13\x65\x64ited_payload_json\x18\x04 \x01(\t\"@\n\x1bResumeFromInterruptResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"&\n\x11\x43\x61ncelGoalRequest\x12\x11\n\tgoal_uuid\x18\x01 \x01(\t\"\'\n\x12\x43\x61ncelGoalResponse\x12\x11\n\tcancelled\x18\x01 \x01(\x08\">\n\x17VerifyCapabilityRequest\x12\x10\n\x08\x61gent_id\x18\x01 \x01(\x03\x12\x11\n\ttool_name\x18\x02 \x01(\t\";\n\x18VerifyCapabilityResponse\x12\x0f\n\x07\x61llowed\x18\x01 \x01(\x08\x12\x0e\n\x06reason\x18\x02 \x01(\t\"+\n\x18GetUserOAuthTokenRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\"F\n\x19GetUserOAuthTokenResponse\x12\x13\n\x0boauth_token\x18\x01 \x01(\t\x12\x14\n\x0cgithub_login\x18\x02 \x01(\t\"x\n\x13\x45mitAuditLogRequest\x12\x12\n\nactor_type\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63tor_id\x18\x02 \x01(\x03\x12\x12\n\nevent_type\x18\x03 \x01(\t\x12\x11\n\tgoal_uuid\x18\x04 \x01(\t\x12\x14\n\x0cpayload_json\x18\x05 \x01(\t\"\"\n\x14\x45mitAuditLogResponse\x12\n\n\x02ok\x18\x01 \x01(\x08\x32\xe7\x02\n\x14OrchestrationService\x12\x65\n\nSubmitGoal\x12*.cosign.orchestration.v1.SubmitGoalRequest\x1a+.cosign.orchestration.v1.SubmitGoalResponse\x12\x80\x01\n\x13ResumeFromInterrupt\x12\x33.cosign.orchestration.v1.ResumeFromInterruptRequest\x1a\x34.cosign.orchestration.v1.ResumeFromInterruptResponse\x12\x65\n\nCancelGoal\x12*.cosign.orchestration.v1.CancelGoalRequest\x1a+.cosign.orchestration.v1.CancelGoalResponse2\xf3\x02\n\x0fIdentityService\x12w\n\x10VerifyCapability\x12\x30.cosign.orchestration.v1.VerifyCapabilityRequest\x1a\x31.cosign.orchestration.v1.VerifyCapabilityResponse\x12z\n\x11GetUserOAuthToken\x12\x31.cosign.orchestration.v1.GetUserOAuthTokenRequest\x1a\x32.cosign.orchestration.v1.GetUserOAuthTokenResponse\x12k\n\x0c\x45mitAuditLog\x12,.cosign.orchestration.v1.EmitAuditLogRequest\x1a-.cosign.orchestration.v1.EmitAuditLogResponseBCZAgithub.com/tensor-bloom/cosign/services/cosign-api/internal/pb;pbb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13orchestration.proto\x12\x17\x63osign.orchestration.v1\"&\n\x11SubmitGoalRequest\x12\x11\n\tgoal_uuid\x18\x01 \x01(\t\"7\n\x12SubmitGoalResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"p\n\x1aResumeFromInterruptRequest\x12\x11\n\tgoal_uuid\x18\x01 \x01(\t\x12\x10\n\x08\x64\x65\x63ision\x18\x02 \x01(\t\x12\x10\n\x08\x66\x65\x65\x64\x62\x61\x63k\x18\x03 \x01(\t\x12\x1b\n\x13\x65\x64ited_payload_json\x18\x04 \x01(\t\"@\n\x1bResumeFromInterruptResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"&\n\x11\x43\x61ncelGoalRequest\x12\x11\n\tgoal_uuid\x18\x01 \x01(\t\"\'\n\x12\x43\x61ncelGoalResponse\x12\x11\n\tcancelled\x18\x01 \x01(\x08\">\n\x17VerifyCapabilityRequest\x12\x10\n\x08\x61gent_id\x18\x01 \x01(\x03\x12\x11\n\ttool_name\x18\x02 \x01(\t\";\n\x18VerifyCapabilityResponse\x12\x0f\n\x07\x61llowed\x18\x01 \x01(\x08\x12\x0e\n\x06reason\x18\x02 \x01(\t\"+\n\x18GetUserOAuthTokenRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\"F\n\x19GetUserOAuthTokenResponse\x12\x13\n\x0boauth_token\x18\x01 \x01(\t\x12\x14\n\x0cgithub_login\x18\x02 \x01(\t\"x\n\x13\x45mitAuditLogRequest\x12\x12\n\nactor_type\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63tor_id\x18\x02 \x01(\x03\x12\x12\n\nevent_type\x18\x03 \x01(\t\x12\x11\n\tgoal_uuid\x18\x04 \x01(\t\x12\x14\n\x0cpayload_json\x18\x05 \x01(\t\"\"\n\x14\x45mitAuditLogResponse\x12\n\n\x02ok\x18\x01 \x01(\x08\",\n\x19GetUserLLMSettingsRequest\x12\x0f\n\x07user_id\x18\x01 \x01(\x03\"\xc5\x01\n\x1aGetUserLLMSettingsResponse\x12\x14\n\x0crouting_json\x18\x01 \x01(\t\x12\\\n\rprovider_keys\x18\x02 \x03(\x0b\x32\x45.cosign.orchestration.v1.GetUserLLMSettingsResponse.ProviderKeysEntry\x1a\x33\n\x11ProviderKeysEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x32\xe7\x02\n\x14OrchestrationService\x12\x65\n\nSubmitGoal\x12*.cosign.orchestration.v1.SubmitGoalRequest\x1a+.cosign.orchestration.v1.SubmitGoalResponse\x12\x80\x01\n\x13ResumeFromInterrupt\x12\x33.cosign.orchestration.v1.ResumeFromInterruptRequest\x1a\x34.cosign.orchestration.v1.ResumeFromInterruptResponse\x12\x65\n\nCancelGoal\x12*.cosign.orchestration.v1.CancelGoalRequest\x1a+.cosign.orchestration.v1.CancelGoalResponse2\xf2\x03\n\x0fIdentityService\x12w\n\x10VerifyCapability\x12\x30.cosign.orchestration.v1.VerifyCapabilityRequest\x1a\x31.cosign.orchestration.v1.VerifyCapabilityResponse\x12z\n\x11GetUserOAuthToken\x12\x31.cosign.orchestration.v1.GetUserOAuthTokenRequest\x1a\x32.cosign.orchestration.v1.GetUserOAuthTokenResponse\x12k\n\x0c\x45mitAuditLog\x12,.cosign.orchestration.v1.EmitAuditLogRequest\x1a-.cosign.orchestration.v1.EmitAuditLogResponse\x12}\n\x12GetUserLLMSettings\x12\x32.cosign.orchestration.v1.GetUserLLMSettingsRequest\x1a\x33.cosign.orchestration.v1.GetUserLLMSettingsResponseBCZAgithub.com/tensor-bloom/cosign/services/cosign-api/internal/pb;pbb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,6 +32,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'orchestration_pb2', _global
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZAgithub.com/tensor-bloom/cosign/services/cosign-api/internal/pb;pb'
+  _globals['_GETUSERLLMSETTINGSRESPONSE_PROVIDERKEYSENTRY']._loaded_options = None
+  _globals['_GETUSERLLMSETTINGSRESPONSE_PROVIDERKEYSENTRY']._serialized_options = b'8\001'
   _globals['_SUBMITGOALREQUEST']._serialized_start=48
   _globals['_SUBMITGOALREQUEST']._serialized_end=86
   _globals['_SUBMITGOALRESPONSE']._serialized_start=88
@@ -56,8 +58,14 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_EMITAUDITLOGREQUEST']._serialized_end=768
   _globals['_EMITAUDITLOGRESPONSE']._serialized_start=770
   _globals['_EMITAUDITLOGRESPONSE']._serialized_end=804
-  _globals['_ORCHESTRATIONSERVICE']._serialized_start=807
-  _globals['_ORCHESTRATIONSERVICE']._serialized_end=1166
-  _globals['_IDENTITYSERVICE']._serialized_start=1169
-  _globals['_IDENTITYSERVICE']._serialized_end=1540
+  _globals['_GETUSERLLMSETTINGSREQUEST']._serialized_start=806
+  _globals['_GETUSERLLMSETTINGSREQUEST']._serialized_end=850
+  _globals['_GETUSERLLMSETTINGSRESPONSE']._serialized_start=853
+  _globals['_GETUSERLLMSETTINGSRESPONSE']._serialized_end=1050
+  _globals['_GETUSERLLMSETTINGSRESPONSE_PROVIDERKEYSENTRY']._serialized_start=999
+  _globals['_GETUSERLLMSETTINGSRESPONSE_PROVIDERKEYSENTRY']._serialized_end=1050
+  _globals['_ORCHESTRATIONSERVICE']._serialized_start=1053
+  _globals['_ORCHESTRATIONSERVICE']._serialized_end=1412
+  _globals['_IDENTITYSERVICE']._serialized_start=1415
+  _globals['_IDENTITYSERVICE']._serialized_end=1913
 # @@protoc_insertion_point(module_scope)

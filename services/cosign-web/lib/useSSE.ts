@@ -19,7 +19,9 @@ export function useSSE(goalUuid: string | null) {
     es.onerror = () => setConnected(false);
 
     const types = [
-      "task.started", "task.tool_call", "task.completed", "task.failed",
+      "run.started",
+      "task.started", "task.tool_call", "task.tool_result", "task.completed", "task.failed",
+      "node.started", "node.completed",
       "iteration.implementer", "iteration.critic", "gate.pending", "gate.resolved",
       "goal.completed", "goal.failed", "goal.cancelled", "goal.status_changed", "message",
     ];

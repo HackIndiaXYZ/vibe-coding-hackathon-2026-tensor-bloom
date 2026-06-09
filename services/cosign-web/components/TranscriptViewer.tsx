@@ -1,24 +1,11 @@
 import type { CriticIteration } from "@/lib/types";
 import { DiffViewer } from "./DiffViewer";
+import { Meter } from "./blueprint/Stat";
 
-function Bar({ value }: { value?: number }) {
-  const pct = Math.round((value ?? 0) * 100);
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-2 w-32 rounded bg-neutral-200 dark:bg-neutral-700">
-        <div
-          className="h-2 rounded bg-emerald-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-xs tabular-nums text-neutral-500">{(value ?? 0).toFixed(2)}</span>
-    </div>
-  );
-}
-
+// The iteration transcript (PRD §6.7) — the artifact you actually cosign.
 export function TranscriptViewer({ rounds }: { rounds: CriticIteration[] }) {
   if (rounds.length === 0) {
-    return <div className="text-sm text-neutral-500">No iterations yet.</div>;
+    return <div className="mono text-xs text-[var(--text-dim)]">no iterations yet</div>;
   }
   return (
     <div className="space-y-2">
@@ -27,30 +14,35 @@ export function TranscriptViewer({ rounds }: { rounds: CriticIteration[] }) {
         const blocking = (fb.blocking_issues as string[]) ?? [];
         const suggestions = (fb.suggestions as string[]) ?? [];
         return (
-          <details key={r.round_number} className="rounded border border-neutral-200 dark:border-neutral-800" open={false}>
-            <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className="font-medium">Round {r.round_number}</span>
-              <Bar value={r.self_satisfaction} />
+          <details key={r.round_number} className="panel ticks group">
+            <span className="tick-bl" /><span className="tick-br" />
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5">
+              <span className="mono text-sm">
+                <span className="text-[var(--cyan)]">round {r.round_number}</span>
+                <span className="ml-2 text-[var(--text-faint)] group-open:hidden">▸ expand</span>
+                <span className="ml-2 hidden text-[var(--text-faint)] group-open:inline">▾ collapse</span>
+              </span>
+              <Meter value={r.self_satisfaction ?? 0} />
             </summary>
-            <div className="space-y-3 border-t border-neutral-200 p-3 dark:border-neutral-800">
+            <div className="space-y-3 border-t border-[var(--line)] p-4">
               <DiffViewer diff={r.implementer_diff} />
               {(blocking.length > 0 || suggestions.length > 0) && (
-                <div className="text-sm">
+                <div className="mono text-xs">
                   {blocking.length > 0 && (
-                    <>
-                      <div className="font-medium text-red-600">Blocking</div>
-                      <ul className="ml-4 list-disc text-neutral-700 dark:text-neutral-300">
-                        {blocking.map((b, i) => <li key={i}>{b}</li>)}
+                    <div className="mb-2">
+                      <div className="label" style={{ color: "var(--danger)" }}>blocking</div>
+                      <ul className="mt-1 space-y-0.5 text-[var(--text)]">
+                        {blocking.map((b, i) => <li key={i}>— {b}</li>)}
                       </ul>
-                    </>
+                    </div>
                   )}
                   {suggestions.length > 0 && (
-                    <>
-                      <div className="mt-1 font-medium text-amber-600">Suggestions</div>
-                      <ul className="ml-4 list-disc text-neutral-700 dark:text-neutral-300">
-                        {suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                    <div>
+                      <div className="label" style={{ color: "var(--warn)" }}>suggestions</div>
+                      <ul className="mt-1 space-y-0.5 text-[var(--text-dim)]">
+                        {suggestions.map((s, i) => <li key={i}>— {s}</li>)}
                       </ul>
-                    </>
+                    </div>
                   )}
                 </div>
               )}

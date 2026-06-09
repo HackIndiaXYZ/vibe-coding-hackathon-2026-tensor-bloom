@@ -30,7 +30,13 @@ def make_finalize_node(ctx):
 
         output_url = ""
         if state["goal_type"] == "issue_implement" and decision == "approve":
-            output_url = await _open_pr(ctx, state, rt)
+            try:
+                output_url = await _open_pr(ctx, state, rt)
+            except Exception as e:  # noqa: BLE001 — a failed push/PR must not read as success
+                log.error("finalize push/PR failed", err=str(e))
+                await dbio.update_goal_status(ctx.pool, goal_uuid, "failed")
+                await ctx.events.publish(goal_uuid, "goal.failed", {"error": str(e)[:400]})
+                return {"output_url": ""}
 
         await dbio.update_goal_status(ctx.pool, goal_uuid, "done")
         await ctx.events.publish(goal_uuid, "goal.completed", {"output_url": output_url})
@@ -49,25 +55,21 @@ async def _open_pr(ctx, state: dict, rt: dict) -> str:
     owner, repo = repo_full.split("/", 1)
     branch = state.get("work_branch") or f"cosign/issue-{state.get('issue_number')}"
     base = state.get("default_branch") or "main"
-    try:
-        await ctx.sandbox.commit_and_push(
-            handle, branch, f"Cosign: resolve issue #{state.get('issue_number')}"
-        )
-        await ctx.sandbox.push(handle, branch, token)
-        tctx = ToolContext(
-            identity=ctx.identity, redis=ctx.redis,
-            agent_id=rt.get("implementer_agent_id", 0), goal_uuid=state["goal_uuid"],
-        )
-        gh = GithubTool(tctx, token)
-        head = f"{rt['login']}:{branch}" if state.get("fork_mode") else branch
-        res = await gh.open_pr(
-            owner, repo,
-            title=f"Resolve #{state.get('issue_number')} (via Cosign)",
-            head=head, base=base,
-            body=f"Resolves #{state.get('issue_number')}.\n\nAuthored by @{rt.get('login')} via Cosign.",
-        )
-        return res.get("url", "")
-    except Exception as e:  # noqa: BLE001
-        log.error("finalize push/PR failed", err=str(e))
-        await ctx.events.publish(state["goal_uuid"], "goal.failed", {"error": str(e)})
-        return ""
+    await ctx.sandbox.commit_and_push(
+        handle, branch, f"Cosign: resolve issue #{state.get('issue_number')}"
+    )
+    # force is safe: the branch is unique per goal (cosign/issue-N-<uuid6>)
+    await ctx.sandbox.push(handle, branch, token, force=True)
+    tctx = ToolContext(
+        identity=ctx.identity, redis=ctx.redis,
+        agent_id=rt.get("implementer_agent_id", 0), goal_uuid=state["goal_uuid"],
+    )
+    gh = GithubTool(tctx, token)
+    head = f"{rt['login']}:{branch}" if state.get("fork_mode") else branch
+    res = await gh.open_pr(
+        owner, repo,
+        title=f"Resolve #{state.get('issue_number')} (via Cosign)",
+        head=head, base=base,
+        body=f"Resolves #{state.get('issue_number')}.\n\nAuthored by @{rt.get('login')} via Cosign.",
+    )
+    return res.get("url", "")

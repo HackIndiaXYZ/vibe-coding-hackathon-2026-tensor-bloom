@@ -1,5 +1,7 @@
+from google.protobuf.internal import containers as _containers
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
+from collections.abc import Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional
 
 DESCRIPTOR: _descriptor.FileDescriptor
@@ -99,3 +101,24 @@ class EmitAuditLogResponse(_message.Message):
     OK_FIELD_NUMBER: _ClassVar[int]
     ok: bool
     def __init__(self, ok: _Optional[bool] = ...) -> None: ...
+
+class GetUserLLMSettingsRequest(_message.Message):
+    __slots__ = ("user_id",)
+    USER_ID_FIELD_NUMBER: _ClassVar[int]
+    user_id: int
+    def __init__(self, user_id: _Optional[int] = ...) -> None: ...
+
+class GetUserLLMSettingsResponse(_message.Message):
+    __slots__ = ("routing_json", "provider_keys")
+    class ProviderKeysEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    ROUTING_JSON_FIELD_NUMBER: _ClassVar[int]
+    PROVIDER_KEYS_FIELD_NUMBER: _ClassVar[int]
+    routing_json: str
+    provider_keys: _containers.ScalarMap[str, str]
+    def __init__(self, routing_json: _Optional[str] = ..., provider_keys: _Optional[_Mapping[str, str]] = ...) -> None: ...

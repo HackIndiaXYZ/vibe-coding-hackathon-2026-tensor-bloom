@@ -18,6 +18,7 @@ _SYS = (
 def make_plan_node(ctx):
     async def plan_node(state: dict) -> dict:
         goal_uuid = state["goal_uuid"]
+        rt = ctx.runtime.get(goal_uuid, {})
         await ctx.events.publish(goal_uuid, "task.started", {"role": "plan"})
         await dbio.update_goal_status(ctx.pool, goal_uuid, "planning")
 
@@ -30,13 +31,17 @@ def make_plan_node(ctx):
         )
         try:
             res = await ctx.router.acall(
-                role="plan_node", messages=build_messages(_SYS, user), task_id=task_id
+                role="plan_node", messages=build_messages(_SYS, user), task_id=task_id,
+                overrides=rt.get("routing"), key_overrides=rt.get("provider_keys"),
             )
             plan = parse_json(res.content, {}).get("steps", [])
         except Exception as e:  # noqa: BLE001 — planning is non-critical
             log.warning("plan failed", err=str(e))
             plan = []
         await dbio.complete_task(ctx.pool, task_id, {"steps": plan})
+        await ctx.events.publish(
+            goal_uuid, "node.completed", {"role": "plan", "summary": f"{len(plan)} step(s)"}
+        )
         return {"plan": plan}
 
     return plan_node

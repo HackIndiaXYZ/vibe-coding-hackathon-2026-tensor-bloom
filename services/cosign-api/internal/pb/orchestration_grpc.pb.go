@@ -217,9 +217,10 @@ var OrchestrationService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	IdentityService_VerifyCapability_FullMethodName  = "/cosign.orchestration.v1.IdentityService/VerifyCapability"
-	IdentityService_GetUserOAuthToken_FullMethodName = "/cosign.orchestration.v1.IdentityService/GetUserOAuthToken"
-	IdentityService_EmitAuditLog_FullMethodName      = "/cosign.orchestration.v1.IdentityService/EmitAuditLog"
+	IdentityService_VerifyCapability_FullMethodName   = "/cosign.orchestration.v1.IdentityService/VerifyCapability"
+	IdentityService_GetUserOAuthToken_FullMethodName  = "/cosign.orchestration.v1.IdentityService/GetUserOAuthToken"
+	IdentityService_EmitAuditLog_FullMethodName       = "/cosign.orchestration.v1.IdentityService/EmitAuditLog"
+	IdentityService_GetUserLLMSettings_FullMethodName = "/cosign.orchestration.v1.IdentityService/GetUserLLMSettings"
 )
 
 // IdentityServiceClient is the client API for IdentityService service.
@@ -238,6 +239,10 @@ type IdentityServiceClient interface {
 	GetUserOAuthToken(ctx context.Context, in *GetUserOAuthTokenRequest, opts ...grpc.CallOption) (*GetUserOAuthTokenResponse, error)
 	// Append an audit-log row (tool calls, state changes).
 	EmitAuditLog(ctx context.Context, in *EmitAuditLogRequest, opts ...grpc.CallOption) (*EmitAuditLogResponse, error)
+	// Return the user's per-tool routing overrides + their decrypted provider API
+	// keys (BYO). Same trust boundary as GetUserOAuthToken: decrypted in cosign-api
+	// memory, handed to the worker, never logged.
+	GetUserLLMSettings(ctx context.Context, in *GetUserLLMSettingsRequest, opts ...grpc.CallOption) (*GetUserLLMSettingsResponse, error)
 }
 
 type identityServiceClient struct {
@@ -278,6 +283,16 @@ func (c *identityServiceClient) EmitAuditLog(ctx context.Context, in *EmitAuditL
 	return out, nil
 }
 
+func (c *identityServiceClient) GetUserLLMSettings(ctx context.Context, in *GetUserLLMSettingsRequest, opts ...grpc.CallOption) (*GetUserLLMSettingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserLLMSettingsResponse)
+	err := c.cc.Invoke(ctx, IdentityService_GetUserLLMSettings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IdentityServiceServer is the server API for IdentityService service.
 // All implementations must embed UnimplementedIdentityServiceServer
 // for forward compatibility.
@@ -294,6 +309,10 @@ type IdentityServiceServer interface {
 	GetUserOAuthToken(context.Context, *GetUserOAuthTokenRequest) (*GetUserOAuthTokenResponse, error)
 	// Append an audit-log row (tool calls, state changes).
 	EmitAuditLog(context.Context, *EmitAuditLogRequest) (*EmitAuditLogResponse, error)
+	// Return the user's per-tool routing overrides + their decrypted provider API
+	// keys (BYO). Same trust boundary as GetUserOAuthToken: decrypted in cosign-api
+	// memory, handed to the worker, never logged.
+	GetUserLLMSettings(context.Context, *GetUserLLMSettingsRequest) (*GetUserLLMSettingsResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
 }
 
@@ -312,6 +331,9 @@ func (UnimplementedIdentityServiceServer) GetUserOAuthToken(context.Context, *Ge
 }
 func (UnimplementedIdentityServiceServer) EmitAuditLog(context.Context, *EmitAuditLogRequest) (*EmitAuditLogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EmitAuditLog not implemented")
+}
+func (UnimplementedIdentityServiceServer) GetUserLLMSettings(context.Context, *GetUserLLMSettingsRequest) (*GetUserLLMSettingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUserLLMSettings not implemented")
 }
 func (UnimplementedIdentityServiceServer) mustEmbedUnimplementedIdentityServiceServer() {}
 func (UnimplementedIdentityServiceServer) testEmbeddedByValue()                         {}
@@ -388,6 +410,24 @@ func _IdentityService_EmitAuditLog_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityService_GetUserLLMSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserLLMSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).GetUserLLMSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_GetUserLLMSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).GetUserLLMSettings(ctx, req.(*GetUserLLMSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IdentityService_ServiceDesc is the grpc.ServiceDesc for IdentityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -406,6 +446,10 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EmitAuditLog",
 			Handler:    _IdentityService_EmitAuditLog_Handler,
+		},
+		{
+			MethodName: "GetUserLLMSettings",
+			Handler:    _IdentityService_GetUserLLMSettings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

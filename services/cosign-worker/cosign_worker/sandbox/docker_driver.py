@@ -231,9 +231,11 @@ class DockerDriver:
         force: bool = False, timeout_s: int = 120,
     ) -> None:
         """Push a branch using an in-memory auth header (token never on disk)."""
-        args = ["git", "-c", _auth_header(token), "push", remote, f"HEAD:{branch}"]
+        push_cmd = ["push"]
         if force:
-            args.insert(3, "--force")
+            push_cmd.append("--force")  # must come AFTER the `push` subcommand
+        push_cmd += [remote, f"HEAD:{branch}"]
+        args = ["git", "-c", _auth_header(token), *push_cmd]
         res = await self.exec(handle, args, timeout_s=timeout_s)
         if res.exit_code != 0:
             raise RuntimeError(f"push failed: {res.stderr.strip()}")

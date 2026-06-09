@@ -648,6 +648,104 @@ func (x *EmitAuditLogResponse) GetOk() bool {
 	return false
 }
 
+type GetUserLLMSettingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserLLMSettingsRequest) Reset() {
+	*x = GetUserLLMSettingsRequest{}
+	mi := &file_orchestration_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserLLMSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserLLMSettingsRequest) ProtoMessage() {}
+
+func (x *GetUserLLMSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestration_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserLLMSettingsRequest.ProtoReflect.Descriptor instead.
+func (*GetUserLLMSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_orchestration_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetUserLLMSettingsRequest) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type GetUserLLMSettingsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// routing_json: { "<role|tool>": {"provider":..,"model":..} } as a JSON string.
+	RoutingJson string `protobuf:"bytes,1,opt,name=routing_json,json=routingJson,proto3" json:"routing_json,omitempty"`
+	// provider -> decrypted API key, for providers the user supplied a key for.
+	ProviderKeys  map[string]string `protobuf:"bytes,2,rep,name=provider_keys,json=providerKeys,proto3" json:"provider_keys,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserLLMSettingsResponse) Reset() {
+	*x = GetUserLLMSettingsResponse{}
+	mi := &file_orchestration_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserLLMSettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserLLMSettingsResponse) ProtoMessage() {}
+
+func (x *GetUserLLMSettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_orchestration_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserLLMSettingsResponse.ProtoReflect.Descriptor instead.
+func (*GetUserLLMSettingsResponse) Descriptor() ([]byte, []int) {
+	return file_orchestration_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetUserLLMSettingsResponse) GetRoutingJson() string {
+	if x != nil {
+		return x.RoutingJson
+	}
+	return ""
+}
+
+func (x *GetUserLLMSettingsResponse) GetProviderKeys() map[string]string {
+	if x != nil {
+		return x.ProviderKeys
+	}
+	return nil
+}
+
 var File_orchestration_proto protoreflect.FileDescriptor
 
 const file_orchestration_proto_rawDesc = "" +
@@ -691,17 +789,26 @@ const file_orchestration_proto_rawDesc = "" +
 	"\tgoal_uuid\x18\x04 \x01(\tR\bgoalUuid\x12!\n" +
 	"\fpayload_json\x18\x05 \x01(\tR\vpayloadJson\"&\n" +
 	"\x14EmitAuditLogResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok2\xe7\x02\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"4\n" +
+	"\x19GetUserLLMSettingsRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\xec\x01\n" +
+	"\x1aGetUserLLMSettingsResponse\x12!\n" +
+	"\frouting_json\x18\x01 \x01(\tR\vroutingJson\x12j\n" +
+	"\rprovider_keys\x18\x02 \x03(\v2E.cosign.orchestration.v1.GetUserLLMSettingsResponse.ProviderKeysEntryR\fproviderKeys\x1a?\n" +
+	"\x11ProviderKeysEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xe7\x02\n" +
 	"\x14OrchestrationService\x12e\n" +
 	"\n" +
 	"SubmitGoal\x12*.cosign.orchestration.v1.SubmitGoalRequest\x1a+.cosign.orchestration.v1.SubmitGoalResponse\x12\x80\x01\n" +
 	"\x13ResumeFromInterrupt\x123.cosign.orchestration.v1.ResumeFromInterruptRequest\x1a4.cosign.orchestration.v1.ResumeFromInterruptResponse\x12e\n" +
 	"\n" +
-	"CancelGoal\x12*.cosign.orchestration.v1.CancelGoalRequest\x1a+.cosign.orchestration.v1.CancelGoalResponse2\xf3\x02\n" +
+	"CancelGoal\x12*.cosign.orchestration.v1.CancelGoalRequest\x1a+.cosign.orchestration.v1.CancelGoalResponse2\xf2\x03\n" +
 	"\x0fIdentityService\x12w\n" +
 	"\x10VerifyCapability\x120.cosign.orchestration.v1.VerifyCapabilityRequest\x1a1.cosign.orchestration.v1.VerifyCapabilityResponse\x12z\n" +
 	"\x11GetUserOAuthToken\x121.cosign.orchestration.v1.GetUserOAuthTokenRequest\x1a2.cosign.orchestration.v1.GetUserOAuthTokenResponse\x12k\n" +
-	"\fEmitAuditLog\x12,.cosign.orchestration.v1.EmitAuditLogRequest\x1a-.cosign.orchestration.v1.EmitAuditLogResponseBCZAgithub.com/tensor-bloom/cosign/services/cosign-api/internal/pb;pbb\x06proto3"
+	"\fEmitAuditLog\x12,.cosign.orchestration.v1.EmitAuditLogRequest\x1a-.cosign.orchestration.v1.EmitAuditLogResponse\x12}\n" +
+	"\x12GetUserLLMSettings\x122.cosign.orchestration.v1.GetUserLLMSettingsRequest\x1a3.cosign.orchestration.v1.GetUserLLMSettingsResponseBCZAgithub.com/tensor-bloom/cosign/services/cosign-api/internal/pb;pbb\x06proto3"
 
 var (
 	file_orchestration_proto_rawDescOnce sync.Once
@@ -715,7 +822,7 @@ func file_orchestration_proto_rawDescGZIP() []byte {
 	return file_orchestration_proto_rawDescData
 }
 
-var file_orchestration_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_orchestration_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_orchestration_proto_goTypes = []any{
 	(*SubmitGoalRequest)(nil),           // 0: cosign.orchestration.v1.SubmitGoalRequest
 	(*SubmitGoalResponse)(nil),          // 1: cosign.orchestration.v1.SubmitGoalResponse
@@ -729,25 +836,31 @@ var file_orchestration_proto_goTypes = []any{
 	(*GetUserOAuthTokenResponse)(nil),   // 9: cosign.orchestration.v1.GetUserOAuthTokenResponse
 	(*EmitAuditLogRequest)(nil),         // 10: cosign.orchestration.v1.EmitAuditLogRequest
 	(*EmitAuditLogResponse)(nil),        // 11: cosign.orchestration.v1.EmitAuditLogResponse
+	(*GetUserLLMSettingsRequest)(nil),   // 12: cosign.orchestration.v1.GetUserLLMSettingsRequest
+	(*GetUserLLMSettingsResponse)(nil),  // 13: cosign.orchestration.v1.GetUserLLMSettingsResponse
+	nil,                                 // 14: cosign.orchestration.v1.GetUserLLMSettingsResponse.ProviderKeysEntry
 }
 var file_orchestration_proto_depIdxs = []int32{
-	0,  // 0: cosign.orchestration.v1.OrchestrationService.SubmitGoal:input_type -> cosign.orchestration.v1.SubmitGoalRequest
-	2,  // 1: cosign.orchestration.v1.OrchestrationService.ResumeFromInterrupt:input_type -> cosign.orchestration.v1.ResumeFromInterruptRequest
-	4,  // 2: cosign.orchestration.v1.OrchestrationService.CancelGoal:input_type -> cosign.orchestration.v1.CancelGoalRequest
-	6,  // 3: cosign.orchestration.v1.IdentityService.VerifyCapability:input_type -> cosign.orchestration.v1.VerifyCapabilityRequest
-	8,  // 4: cosign.orchestration.v1.IdentityService.GetUserOAuthToken:input_type -> cosign.orchestration.v1.GetUserOAuthTokenRequest
-	10, // 5: cosign.orchestration.v1.IdentityService.EmitAuditLog:input_type -> cosign.orchestration.v1.EmitAuditLogRequest
-	1,  // 6: cosign.orchestration.v1.OrchestrationService.SubmitGoal:output_type -> cosign.orchestration.v1.SubmitGoalResponse
-	3,  // 7: cosign.orchestration.v1.OrchestrationService.ResumeFromInterrupt:output_type -> cosign.orchestration.v1.ResumeFromInterruptResponse
-	5,  // 8: cosign.orchestration.v1.OrchestrationService.CancelGoal:output_type -> cosign.orchestration.v1.CancelGoalResponse
-	7,  // 9: cosign.orchestration.v1.IdentityService.VerifyCapability:output_type -> cosign.orchestration.v1.VerifyCapabilityResponse
-	9,  // 10: cosign.orchestration.v1.IdentityService.GetUserOAuthToken:output_type -> cosign.orchestration.v1.GetUserOAuthTokenResponse
-	11, // 11: cosign.orchestration.v1.IdentityService.EmitAuditLog:output_type -> cosign.orchestration.v1.EmitAuditLogResponse
-	6,  // [6:12] is the sub-list for method output_type
-	0,  // [0:6] is the sub-list for method input_type
-	0,  // [0:0] is the sub-list for extension type_name
-	0,  // [0:0] is the sub-list for extension extendee
-	0,  // [0:0] is the sub-list for field type_name
+	14, // 0: cosign.orchestration.v1.GetUserLLMSettingsResponse.provider_keys:type_name -> cosign.orchestration.v1.GetUserLLMSettingsResponse.ProviderKeysEntry
+	0,  // 1: cosign.orchestration.v1.OrchestrationService.SubmitGoal:input_type -> cosign.orchestration.v1.SubmitGoalRequest
+	2,  // 2: cosign.orchestration.v1.OrchestrationService.ResumeFromInterrupt:input_type -> cosign.orchestration.v1.ResumeFromInterruptRequest
+	4,  // 3: cosign.orchestration.v1.OrchestrationService.CancelGoal:input_type -> cosign.orchestration.v1.CancelGoalRequest
+	6,  // 4: cosign.orchestration.v1.IdentityService.VerifyCapability:input_type -> cosign.orchestration.v1.VerifyCapabilityRequest
+	8,  // 5: cosign.orchestration.v1.IdentityService.GetUserOAuthToken:input_type -> cosign.orchestration.v1.GetUserOAuthTokenRequest
+	10, // 6: cosign.orchestration.v1.IdentityService.EmitAuditLog:input_type -> cosign.orchestration.v1.EmitAuditLogRequest
+	12, // 7: cosign.orchestration.v1.IdentityService.GetUserLLMSettings:input_type -> cosign.orchestration.v1.GetUserLLMSettingsRequest
+	1,  // 8: cosign.orchestration.v1.OrchestrationService.SubmitGoal:output_type -> cosign.orchestration.v1.SubmitGoalResponse
+	3,  // 9: cosign.orchestration.v1.OrchestrationService.ResumeFromInterrupt:output_type -> cosign.orchestration.v1.ResumeFromInterruptResponse
+	5,  // 10: cosign.orchestration.v1.OrchestrationService.CancelGoal:output_type -> cosign.orchestration.v1.CancelGoalResponse
+	7,  // 11: cosign.orchestration.v1.IdentityService.VerifyCapability:output_type -> cosign.orchestration.v1.VerifyCapabilityResponse
+	9,  // 12: cosign.orchestration.v1.IdentityService.GetUserOAuthToken:output_type -> cosign.orchestration.v1.GetUserOAuthTokenResponse
+	11, // 13: cosign.orchestration.v1.IdentityService.EmitAuditLog:output_type -> cosign.orchestration.v1.EmitAuditLogResponse
+	13, // 14: cosign.orchestration.v1.IdentityService.GetUserLLMSettings:output_type -> cosign.orchestration.v1.GetUserLLMSettingsResponse
+	8,  // [8:15] is the sub-list for method output_type
+	1,  // [1:8] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_orchestration_proto_init() }
@@ -761,7 +874,7 @@ func file_orchestration_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orchestration_proto_rawDesc), len(file_orchestration_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

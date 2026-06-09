@@ -35,14 +35,17 @@ class LintTool(BaseTool):
 
     async def run(self, *, timeout_s: int = 60) -> dict:
         await self._guard()
-        cmd = await self._detect()
-        if cmd is None:
-            return {"detected": False, "clean": None, "command": None, "violations": ""}
-        res = await self.ctx.sandbox.exec(self.handle, cmd, timeout_s=timeout_s)
-        clean = res.exit_code == 0 and not res.stdout.strip()
-        return {
-            "detected": True,
-            "clean": clean,
-            "command": " ".join(cmd),
-            "violations": (res.stdout + "\n" + res.stderr)[-4000:],
-        }
+        async with self.track("lint") as step:
+            cmd = await self._detect()
+            if cmd is None:
+                step["summary"] = "no linter detected"
+                return {"detected": False, "clean": None, "command": None, "violations": ""}
+            res = await self.ctx.sandbox.exec(self.handle, cmd, timeout_s=timeout_s)
+            clean = res.exit_code == 0 and not res.stdout.strip()
+            step["summary"] = f"{cmd[0]} · {'clean' if clean else 'violations'}"
+            return {
+                "detected": True,
+                "clean": clean,
+                "command": " ".join(cmd),
+                "violations": (res.stdout + "\n" + res.stderr)[-4000:],
+            }

@@ -20,6 +20,7 @@ type Deps struct {
 	Health     handlers.HealthHandler
 	Auth       *handlers.AuthHandler
 	Goals      *handlers.GoalsHandler
+	Settings   *handlers.SettingsHandler
 	SSE        *sse.Handler
 	WebBaseURL string
 }
@@ -33,7 +34,7 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(gwmw.AccessLog(d.Log))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{d.WebBaseURL},
-		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization", "Last-Event-ID"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -62,6 +63,10 @@ func NewRouter(d Deps) http.Handler {
 		r.Get("/goals/{uuid}", d.Goals.Get)
 		r.Post("/goals/{uuid}/resume", d.Goals.Resume)
 		r.Delete("/goals/{uuid}", d.Goals.Cancel)
+
+		r.Get("/settings", d.Settings.Get)
+		r.Put("/settings/routing", d.Settings.PutRouting)
+		r.Put("/settings/keys", d.Settings.PutKey)
 	})
 
 	// SSE stream (auth via cookie; EventSource can't set headers).

@@ -25,7 +25,7 @@ class EventPublisher:
             await self._redis.xadd(
                 f"stream:goal:{goal_uuid}",
                 {"event": event, "data": json.dumps(data, default=str)},
-                maxlen=1000,
+                maxlen=5000,  # full per-goal history fits for SSE replay
                 approximate=True,
             )
         except Exception as e:  # noqa: BLE001 — events are best-effort

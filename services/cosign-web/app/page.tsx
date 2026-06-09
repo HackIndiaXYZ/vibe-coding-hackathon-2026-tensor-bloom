@@ -24,67 +24,101 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Skeleton />;
+  if (loading) {
+    return <div className="panel ticks h-40 pulse" />;
+  }
 
   if (!user) {
     return (
-      <div className="py-16 text-center">
-        <h1 className="text-2xl font-semibold">AI drafts the work. You cosign.</h1>
-        <p className="mt-2 text-neutral-500">
-          Reviews and PRs shipped under your name — never a bot&apos;s.
+      <div className="rise mx-auto mt-10 max-w-xl">
+        <div className="label kicker mb-3">{"// cosign — human-in-the-loop dev agent"}</div>
+        <h1 className="mb-4 text-3xl leading-tight">
+          AI drafts the work. An AI critic refines it.{" "}
+          <span className="text-[var(--cyan)]">You cosign.</span>
+        </h1>
+        <p className="mb-6 text-sm text-[var(--text-dim)]">
+          Reviews and pull requests ship under your name on GitHub — never a bot&apos;s.
+          You enter once, at the end, to sign.
         </p>
-        <a
-          href={api.loginUrl()}
-          className="mt-6 inline-block rounded bg-black px-4 py-2 text-white dark:bg-white dark:text-black"
-        >
-          Sign in with GitHub
+        <a href={api.loginUrl()} className="btn btn-primary">
+          sign in with github →
         </a>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-3">
-        <Link href="/review" className="rounded border border-neutral-300 px-4 py-2 text-sm dark:border-neutral-700">
-          Review a PR
-        </Link>
-        <Link href="/resolve" className="rounded border border-neutral-300 px-4 py-2 text-sm dark:border-neutral-700">
-          Resolve an issue
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <section className="rise">
+        <div className="label kicker mb-2">{"// start a goal"}</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CTA href="/review" k="A" title="Review a PR" sub="reviewer agent drafts · you edit + cosign · posts as you" />
+          <CTA href="/resolve" k="B" title="Resolve an issue" sub="implementer ⇄ critic loop · cosign the transcript · PR as you" />
+        </div>
+      </section>
 
-      <section>
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">Recent goals</h2>
-        {goals.length === 0 ? (
-          <p className="text-sm text-neutral-500">No goals yet. Start one above.</p>
-        ) : (
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {goals.map((g) => (
-              <li key={g.uuid}>
-                <Link href={`/goals/${g.uuid}`} className="flex items-center gap-3 py-2 hover:opacity-80">
-                  <StatusDot status={g.status} />
-                  <span className="text-sm">{g.title}</span>
-                  <span className="ml-auto text-xs text-neutral-500">{g.status}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="rise" style={{ animationDelay: "80ms" }}>
+        <div className="mb-2 flex items-baseline justify-between">
+          <div className="label kicker">{"// recent goals"}</div>
+          <div className="label">{goals.length} total</div>
+        </div>
+        <div className="panel ticks">
+          <span className="tick-bl" /><span className="tick-br" />
+          {goals.length === 0 ? (
+            <div className="p-6 text-sm text-[var(--text-dim)]">No goals yet — start one above.</div>
+          ) : (
+            <ul>
+              {goals.map((g, i) => (
+                <li key={g.uuid} className={i > 0 ? "border-t border-[var(--line)]" : ""}>
+                  <Link
+                    href={`/goals/${g.uuid}`}
+                    className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--panel-2)]"
+                  >
+                    <StatusGlyph status={g.status} />
+                    <span className="mono text-xs text-[var(--text-dim)]">
+                      {g.type === "pr_review" ? "A" : "B"}
+                    </span>
+                    <span className="flex-1 truncate text-sm group-hover:text-[var(--cyan)]">{g.title}</span>
+                    <span className="label">{g.status.replace("_", " ")}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
     </div>
   );
 }
 
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === "done" ? "bg-emerald-500"
-      : status === "awaiting_human" ? "bg-amber-500"
-      : status === "failed" || status === "cancelled" ? "bg-red-500"
-      : "bg-blue-500";
-  return <span className={`h-2 w-2 rounded-full ${color}`} />;
+function CTA({ href, k, title, sub }: { href: string; k: string; title: string; sub: string }) {
+  return (
+    <Link href={href} className="panel ticks group block p-4 transition-colors hover:bg-[var(--panel-2)]">
+      <span className="tick-bl" /><span className="tick-br" />
+      <div className="flex items-center gap-2">
+        <span className="mono text-xs text-[var(--cyan)]">flow·{k.toLowerCase()}</span>
+      </div>
+      <div className="mt-1 text-lg group-hover:text-[var(--cyan)]">{title}</div>
+      <div className="mt-1 text-xs text-[var(--text-dim)]">{sub}</div>
+    </Link>
+  );
 }
 
-function Skeleton() {
-  return <div className="h-32 animate-pulse rounded bg-neutral-100 dark:bg-neutral-900" />;
+function StatusGlyph({ status }: { status: string }) {
+  const map: Record<string, [string, string]> = {
+    done: ["✓", "var(--ok)"],
+    awaiting_human: ["✋", "var(--warn)"],
+    executing: ["⟳", "var(--cyan)"],
+    planning: ["⟳", "var(--cyan)"],
+    pending: ["·", "var(--text-dim)"],
+    failed: ["✗", "var(--danger)"],
+    cancelled: ["⊘", "var(--danger)"],
+  };
+  const [glyph, color] = map[status] ?? ["·", "var(--text-dim)"];
+  const spin = status === "executing" || status === "planning";
+  return (
+    <span className={`mono w-4 text-center ${spin ? "pulse" : ""}`} style={{ color }}>
+      {glyph}
+    </span>
+  );
 }

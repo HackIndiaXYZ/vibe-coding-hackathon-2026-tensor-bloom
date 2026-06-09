@@ -15,6 +15,7 @@ type Querier interface {
 	CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, error)
 	// ── Interrupts (HITL gates) ───────────────────────────────────────────────────
 	CreateInterrupt(ctx context.Context, arg CreateInterruptParams) (Interrupt, error)
+	DeleteUserProviderKey(ctx context.Context, arg DeleteUserProviderKeyParams) error
 	// ── Agents (capability check) ─────────────────────────────────────────────────
 	GetAgentByID(ctx context.Context, id int64) (Agent, error)
 	GetGoalByUUID(ctx context.Context, argUuid uuid.UUID) (Goal, error)
@@ -24,6 +25,8 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	GetUserByUUID(ctx context.Context, argUuid uuid.UUID) (User, error)
 	GetUserOAuthToken(ctx context.Context, id int64) (GetUserOAuthTokenRow, error)
+	// ── User LLM settings (routing overrides + BYO provider keys) ──────────────────
+	GetUserRouting(ctx context.Context, userID int64) ([]byte, error)
 	// ── Cost breakdown (per-role aggregation for a goal) ──────────────────────────
 	GoalCostBreakdown(ctx context.Context, goalID int64) ([]GoalCostBreakdownRow, error)
 	// ── Audit log ─────────────────────────────────────────────────────────────────
@@ -34,12 +37,15 @@ type Querier interface {
 	ListInterruptsByGoal(ctx context.Context, goalID int64) ([]Interrupt, error)
 	// ── Tasks (read for goal detail) ──────────────────────────────────────────────
 	ListTasksByGoal(ctx context.Context, goalID int64) ([]Task, error)
+	ListUserProviderKeys(ctx context.Context, userID int64) ([]ListUserProviderKeysRow, error)
 	ResolveInterrupt(ctx context.Context, arg ResolveInterruptParams) error
 	UpdateGoalStatus(ctx context.Context, arg UpdateGoalStatusParams) error
 	// ── Repositories ──────────────────────────────────────────────────────────────
 	UpsertRepository(ctx context.Context, arg UpsertRepositoryParams) (Repository, error)
 	// ── Users ─────────────────────────────────────────────────────────────────────
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
+	UpsertUserProviderKey(ctx context.Context, arg UpsertUserProviderKeyParams) error
+	UpsertUserRouting(ctx context.Context, arg UpsertUserRoutingParams) error
 }
 
 var _ Querier = (*Queries)(nil)

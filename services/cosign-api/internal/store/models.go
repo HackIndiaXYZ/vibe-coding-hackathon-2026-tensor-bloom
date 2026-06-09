@@ -144,3 +144,16 @@ type User struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	LastLoginAt               *time.Time         `json:"last_login_at"`
 }
+
+type UserLlmSetting struct {
+	UserID      int64              `json:"user_id"`
+	RoutingJson []byte             `json:"routing_json"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type UserProviderKey struct {
+	UserID          int64              `json:"user_id"`
+	Provider        string             `json:"provider"`
+	ApiKeyEncrypted []byte             `json:"api_key_encrypted"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}

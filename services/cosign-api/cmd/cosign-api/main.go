@@ -105,6 +105,7 @@ func run() error {
 		cfg.WebBaseURL, cfg.GithubAppInstallURL, cfg.CookieSecure, cfg.CookieDomain)
 
 	goalsH := &handlers.GoalsHandler{Q: q, Crypto: crypto, Worker: worker, Log: log}
+	settingsH := &handlers.SettingsHandler{Q: q, Crypto: crypto, Log: log}
 	sseH := &sse.Handler{Redis: rdb, Log: log}
 
 	router := gateway.NewRouter(gateway.Deps{
@@ -113,6 +114,7 @@ func run() error {
 		Health:     handlers.HealthHandler{Version: version, Commit: commit},
 		Auth:       authH,
 		Goals:      goalsH,
+		Settings:   settingsH,
 		SSE:        sseH,
 		WebBaseURL: cfg.WebBaseURL,
 	})

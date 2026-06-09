@@ -1,13 +1,18 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useSSE } from "@/lib/useSSE";
 import type { GoalDetail, Interrupt, ResumeRequest } from "@/lib/types";
 import { CostBar } from "@/components/CostBar";
-import { EventFeed } from "@/components/EventFeed";
+import { ActivityStream } from "@/components/ActivityStream";
+import { Revisions } from "@/components/Revisions";
 import { CosignGate } from "@/components/CosignGate";
+import { PipelineDiagram } from "@/components/blueprint/PipelineDiagram";
+import { SignatureStamp } from "@/components/blueprint/SignatureStamp";
+import { Tabs } from "@/components/blueprint/Tabs";
+import { MockBanner } from "@/components/blueprint/Banner";
 
 export default function GoalPage() {
   const { uuid } = useParams<{ uuid: string }>();
@@ -22,7 +27,6 @@ export default function GoalPage() {
     refresh();
   }, [refresh]);
 
-  // Re-fetch detail whenever a gate or terminal event arrives.
   useEffect(() => {
     const last = events[events.length - 1];
     if (!last) return;
@@ -31,11 +35,19 @@ export default function GoalPage() {
     }
   }, [events, refresh]);
 
+  const [tab, setTab] = useState<"activity" | "revisions">("activity");
+  const run = useMemo(() => events.find((e) => e.event === "run.started")?.data, [events]);
+  const mock = Boolean(run?.mock);
+
   if (!goal) {
-    return <div className="h-40 animate-pulse rounded bg-neutral-100 dark:bg-neutral-900" />;
+    return <div className="panel ticks h-40 pulse" />;
   }
 
-  const pending: Interrupt | undefined = goal.interrupts.find((i) => !i.resolved_at);
+  const interrupts = goal.interrupts ?? [];
+  const transcript = goal.transcript ?? [];
+  const costBreakdown = goal.cost_breakdown ?? [];
+  const pending: Interrupt | undefined = interrupts.find((i) => !i.resolved_at);
+  const lastRound = transcript[transcript.length - 1];
 
   async function resolve(req: ResumeRequest) {
     await api.resume(uuid, req);
@@ -44,37 +56,83 @@ export default function GoalPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold">{goal.title}</h1>
-        <div className="mt-1 flex items-center gap-3 text-xs text-neutral-500">
-          <span>{goal.status}</span>
-          <span>·</span>
-          <span>{connected ? "live" : "disconnected"}</span>
-          {goal.fork_mode && <span className="rounded bg-amber-100 px-1.5 text-amber-700">fork-mode</span>}
-          {goal.output_url && (
-            <a href={goal.output_url} className="text-blue-600 underline" target="_blank" rel="noreferrer">
-              view on GitHub
-            </a>
+      <div className="rise flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="label kicker mb-1">{"// goal · "}{uuid.slice(0, 8)}</div>
+          <h1 className="text-xl">{goal.title}</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          {goal.fork_mode && (
+            <span className="label border border-[var(--line)] px-2 py-1" style={{ color: "var(--warn)" }}>
+              fork-mode
+            </span>
           )}
+          <span className="mono text-xs" style={{ color: connected ? "var(--ok)" : "var(--text-dim)" }}>
+            {connected ? "● live" : "○ offline"}
+          </span>
+          {goal.status === "done" && <SignatureStamp signed />}
         </div>
       </div>
 
-      <CostBar rows={goal.cost_breakdown} />
+      <div className="rise" style={{ animationDelay: "60ms" }}>
+        <PipelineDiagram
+          type={goal.type}
+          status={goal.status}
+          round={lastRound?.round_number}
+          score={lastRound?.self_satisfaction}
+        />
+      </div>
+
+      <div className="rise" style={{ animationDelay: "120ms" }}>
+        <CostBar rows={costBreakdown} />
+      </div>
 
       {pending ? (
-        <CosignGate interrupt={pending} transcript={goal.transcript} onResolve={resolve} />
+        <CosignGate interrupt={pending} transcript={transcript} onResolve={resolve} mock={mock} />
       ) : goal.status === "done" ? (
-        <div className="rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-          Goal complete — cosigned by you.
+        <div
+          className="panel ticks flex items-center justify-between p-4"
+          style={{ borderColor: "var(--ok)" }}
+        >
+          <span className="tick-bl" /><span className="tick-br" />
+          <span className="text-sm" style={{ color: "var(--ok)" }}>✓ goal complete — cosigned by you.</span>
+          {goal.output_url && (
+            <a href={goal.output_url} target="_blank" rel="noreferrer" className="btn">
+              view on github →
+            </a>
+          )}
         </div>
       ) : null}
 
-      <section>
-        <h2 className="mb-2 text-sm font-medium text-neutral-500">
-          Live activity {connected ? "●" : "○"}
-        </h2>
-        <EventFeed events={events} />
-      </section>
+      {mock && (
+        <div className="rise" style={{ animationDelay: "150ms" }}>
+          <MockBanner model={run?.model as string | undefined} />
+        </div>
+      )}
+
+      <div className="rise" style={{ animationDelay: "180ms" }}>
+        <div className="mb-2 flex items-center justify-between">
+          <Tabs
+            tabs={[
+              { key: "activity", label: "activity", badge: events.length || undefined },
+              { key: "revisions", label: "revisions", badge: transcript.length || undefined },
+            ]}
+            active={tab}
+            onChange={(k) => setTab(k as "activity" | "revisions")}
+          />
+          <span className="label">{connected ? "● streaming" : "○ idle"}</span>
+        </div>
+        <div className="panel ticks">
+          <span className="tick-bl" /><span className="tick-br" />
+          <div className="max-h-[28rem] overflow-y-auto p-4">
+            {tab === "activity" ? (
+              <ActivityStream events={events} />
+            ) : (
+              <Revisions rounds={transcript} mock={mock} />
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

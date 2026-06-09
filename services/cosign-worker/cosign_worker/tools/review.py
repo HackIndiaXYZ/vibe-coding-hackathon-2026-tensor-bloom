@@ -85,4 +85,9 @@ class ReviewTool(BaseTool):
 
     async def run(self, raw: dict | str) -> dict:
         await self._guard()
-        return compose_review(raw)
+        async with self.track("compose review") as step:
+            draft = compose_review(raw)
+            step["summary"] = (
+                f"risk {draft['risk_score']:.2f} · {len(draft['per_file_comments'])} comments"
+            )
+            return draft

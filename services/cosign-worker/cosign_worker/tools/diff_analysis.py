@@ -80,4 +80,10 @@ class DiffAnalysisTool(BaseTool):
 
     async def run(self, diff: str) -> dict:
         await self._guard()
-        return analyze_diff(diff)
+        async with self.track("analyze diff") as step:
+            res = analyze_diff(diff)
+            step["summary"] = (
+                f"{len(res['files'])} files · "
+                + ("⚠ dangerous" if res["dangerous"] else "clean")
+            )
+            return res

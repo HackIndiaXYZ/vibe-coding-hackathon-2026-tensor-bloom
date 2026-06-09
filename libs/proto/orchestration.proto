@@ -38,6 +38,11 @@ service IdentityService {
 
   // Append an audit-log row (tool calls, state changes).
   rpc EmitAuditLog(EmitAuditLogRequest) returns (EmitAuditLogResponse);
+
+  // Return the user's per-tool routing overrides + their decrypted provider API
+  // keys (BYO). Same trust boundary as GetUserOAuthToken: decrypted in cosign-api
+  // memory, handed to the worker, never logged.
+  rpc GetUserLLMSettings(GetUserLLMSettingsRequest) returns (GetUserLLMSettingsResponse);
 }
 
 // ── Orchestration messages ────────────────────────────────────────────────────
@@ -95,4 +100,14 @@ message EmitAuditLogRequest {
 }
 message EmitAuditLogResponse {
   bool ok = 1;
+}
+
+message GetUserLLMSettingsRequest {
+  int64 user_id = 1;
+}
+message GetUserLLMSettingsResponse {
+  // routing_json: { "<role|tool>": {"provider":..,"model":..} } as a JSON string.
+  string routing_json = 1;
+  // provider -> decrypted API key, for providers the user supplied a key for.
+  map<string, string> provider_keys = 2;
 }

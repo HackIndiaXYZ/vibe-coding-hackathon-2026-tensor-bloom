@@ -30,6 +30,7 @@ def make_reviewer_node(ctx):
         goal_uuid = state["goal_uuid"]
         rt = ctx.runtime.get(goal_uuid, {})
         await ctx.events.publish(goal_uuid, "task.started", {"role": "reviewer"})
+        await ctx.events.publish(goal_uuid, "node.started", {"role": "reviewer"})
         await dbio.update_goal_status(ctx.pool, goal_uuid, "executing")
 
         owner, repo = (state["repo_full_name"].split("/", 1) + [""])[:2] \
@@ -39,7 +40,7 @@ def make_reviewer_node(ctx):
         diff = ""
         if rt.get("token") and owner and repo and number:
             tctx = ToolContext(
-                identity=ctx.identity, redis=ctx.redis,
+                identity=ctx.identity, redis=ctx.redis, events=ctx.events,
                 agent_id=rt.get("reviewer_agent_id", 0), goal_uuid=goal_uuid,
             )
             gh = GithubTool(tctx, rt["token"])
@@ -57,10 +58,16 @@ def make_reviewer_node(ctx):
             f"DIFF:\n{diff[:20000]}"
         )
         res = await ctx.router.acall(
-            role="reviewer", messages=build_messages(_SYS, user), task_id=task_id
+            role="reviewer", messages=build_messages(_SYS, user), task_id=task_id,
+            overrides=rt.get("routing"), key_overrides=rt.get("provider_keys"),
         )
         draft = compose_review(parse_json(res.content, {"summary": res.content}))
         await dbio.complete_task(ctx.pool, task_id, draft)
+        await ctx.events.publish(
+            goal_uuid, "node.completed",
+            {"role": "reviewer",
+             "summary": f"risk {draft['risk_score']:.2f} · {len(draft['per_file_comments'])} comments"},
+        )
 
         # write the gate (artifact-producing node runs once; safe before interrupt)
         await dbio.create_interrupt(ctx.pool, state["goal_id"], "pr_review_gate", draft)

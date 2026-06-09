@@ -86,12 +86,42 @@ export interface ResumeRequest {
   edited_review?: ReviewDraft;
 }
 
+// ── LLM settings (per-user routing + BYO keys) ────────────────────────────────
+export interface RouteChoice {
+  provider: string;
+  model: string;
+}
+export interface ProviderStatus {
+  name: string;
+  has_key: boolean;
+}
+export interface RoleSlot {
+  key: string;
+  label: string;
+  deterministic: boolean;
+  operator_model: string;
+}
+export interface ProviderModels {
+  provider: string;
+  models: string[];
+}
+export interface SettingsResponse {
+  routing: Record<string, RouteChoice>;
+  providers: ProviderStatus[];
+  catalog: ProviderModels[];
+  roles: RoleSlot[];
+}
+
 export type SSEEventType =
+  | "run.started"
   | "goal.status_changed"
   | "task.started"
   | "task.tool_call"
+  | "task.tool_result"
   | "task.completed"
   | "task.failed"
+  | "node.started"
+  | "node.completed"
   | "iteration.implementer"
   | "iteration.critic"
   | "gate.pending"

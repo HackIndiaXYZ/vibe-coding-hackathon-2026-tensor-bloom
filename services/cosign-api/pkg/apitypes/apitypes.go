@@ -114,3 +114,71 @@ type PerFileComment struct {
 	Line    int32  `json:"line,omitempty"`
 	Comment string `json:"comment"`
 }
+
+// ── LLM settings (per-user routing overrides + BYO keys) ──────────────────────
+
+// RouteChoice is the user's chosen provider+model for one role/tool.
+type RouteChoice struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+// ProviderStatus reports whether the user has stored a key for a provider
+// (never the key itself).
+type ProviderStatus struct {
+	Name   string `json:"name"`
+	HasKey bool   `json:"has_key"`
+}
+
+// RoleSlot describes a routeable role/tool shown in the settings UI.
+type RoleSlot struct {
+	Key           string `json:"key"`           // plan_node | implementer | reviewer | critic | diff_analysis | repo_map | ...
+	Label         string `json:"label"`
+	Deterministic bool   `json:"deterministic"` // true => no LLM (repo_map/lint/test_runner)
+	OperatorModel string `json:"operator_model"` // the operator default, shown as reference
+}
+
+// ProviderModels is the curated catalog entry for one provider.
+type ProviderModels struct {
+	Provider string   `json:"provider"`
+	Models   []string `json:"models"`
+}
+
+type SettingsResponse struct {
+	Routing   map[string]RouteChoice `json:"routing"`
+	Providers []ProviderStatus       `json:"providers"`
+	Catalog   []ProviderModels       `json:"catalog"`
+	Roles     []RoleSlot             `json:"roles"`
+}
+
+type PutRoutingRequest struct {
+	Routing map[string]RouteChoice `json:"routing"`
+}
+
+type PutKeyRequest struct {
+	Provider string `json:"provider"`
+	APIKey   string `json:"api_key"` // empty => delete the key
+}
+
+// Catalog is the curated provider→models list surfaced in the picker. Users may
+// also type a custom model id. Keep in sync with the worker/UI catalog.
+var Catalog = []ProviderModels{
+	{Provider: "anthropic", Models: []string{"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-1"}},
+	{Provider: "groq", Models: []string{"llama-3.3-70b-versatile", "llama-3.1-8b-instant"}},
+	{Provider: "openai", Models: []string{"gpt-4o", "gpt-4o-mini"}},
+}
+
+// Roles is the set of routeable slots shown in the settings UI.
+var Roles = []RoleSlot{
+	{Key: "plan_node", Label: "Planner", OperatorModel: "claude-haiku-4-5"},
+	{Key: "implementer", Label: "Implementer", OperatorModel: "claude-sonnet-4-6"},
+	{Key: "reviewer", Label: "Reviewer", OperatorModel: "claude-sonnet-4-6"},
+	{Key: "critic", Label: "Critic", OperatorModel: "llama-3.3-70b"},
+	{Key: "diff_analysis", Label: "Diff analysis", OperatorModel: "claude-haiku-4-5"},
+	{Key: "repo_map", Label: "Repo map", Deterministic: true},
+	{Key: "lint", Label: "Lint", Deterministic: true},
+	{Key: "test_runner", Label: "Test runner", Deterministic: true},
+}
+
+// KnownProviders lists providers a user can store a key for.
+var KnownProviders = []string{"anthropic", "groq", "openai"}

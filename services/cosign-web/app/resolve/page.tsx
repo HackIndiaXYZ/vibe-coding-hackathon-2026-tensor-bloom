@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { Panel } from "@/components/blueprint/Panel";
 
 export default function ResolvePage() {
   const router = useRouter();
@@ -25,34 +26,42 @@ export default function ResolvePage() {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-xl space-y-4">
-      <h1 className="text-xl font-semibold">Resolve an issue with Cosign</h1>
-      <p className="text-sm text-neutral-500">
-        Paste a GitHub issue URL. An implementer and a critic iterate to convergence; you cosign
-        the transcript once, and the PR opens authored by you.
-      </p>
-      <input
-        required
-        type="url"
-        placeholder="https://github.com/owner/repo/issues/123"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        className="w-full rounded border border-neutral-300 bg-transparent p-2 text-sm dark:border-neutral-700"
-      />
-      <textarea
-        placeholder="Optional steering note (e.g. also update tests under tests/foo/)"
-        value={steer}
-        onChange={(e) => setSteer(e.target.value)}
-        rows={3}
-        className="w-full rounded border border-neutral-300 bg-transparent p-2 text-sm dark:border-neutral-700"
-      />
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      <button
-        disabled={busy}
-        className="rounded bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
-      >
-        {busy ? "Starting…" : "Resolve with Cosign"}
-      </button>
-    </form>
+    <div className="rise mx-auto max-w-xl">
+      <div className="label kicker mb-2">{"// flow·b — resolve an issue"}</div>
+      <Panel title="resolve with cosign" right="impl ⇄ critic → gate">
+        <p className="mb-4 text-sm text-[var(--text-dim)]">
+          Paste a GitHub issue URL. An implementer and a critic iterate to convergence inside the
+          sandbox; you cosign the transcript once, and the PR opens{" "}
+          <span className="text-[var(--text)]">authored by you</span>.
+        </p>
+        <form onSubmit={submit} className="space-y-4">
+          <label className="block">
+            <span className="label">issue url</span>
+            <input
+              required
+              type="url"
+              placeholder="https://github.com/owner/repo/issues/123"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="field mt-1"
+            />
+          </label>
+          <label className="block">
+            <span className="label">steering note <span className="text-[var(--text-faint)]">— optional spec annotation</span></span>
+            <textarea
+              placeholder="e.g. also update the tests under tests/foo/"
+              value={steer}
+              onChange={(e) => setSteer(e.target.value)}
+              rows={3}
+              className="field mt-1 resize-y"
+            />
+          </label>
+          {err && <p className="mono text-xs text-[var(--danger)]">! {err}</p>}
+          <button disabled={busy} className="btn btn-primary">
+            {busy ? "starting…" : "resolve with cosign →"}
+          </button>
+        </form>
+      </Panel>
+    </div>
   );
 }

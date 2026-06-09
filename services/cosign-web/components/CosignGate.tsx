@@ -5,22 +5,22 @@ import type { CriticIteration, Interrupt, ResumeRequest, ReviewDraft } from "@/l
 import { ReviewEditor } from "./ReviewEditor";
 import { TranscriptViewer } from "./TranscriptViewer";
 import { DiffViewer } from "./DiffViewer";
+import { SignatureStamp } from "./blueprint/SignatureStamp";
 
-// The cosign gesture. Renders the artifact the human reviews, then resolves the
-// gate. Keyboard: a = cosign, r = revise, x = reject.
+// The cosign gesture (PRD §1.2.1 — "the gate is the product"). a = cosign, r = revise, x = reject.
 export function CosignGate({
   interrupt,
   transcript,
   onResolve,
+  mock = false,
 }: {
   interrupt: Interrupt;
   transcript: CriticIteration[];
   onResolve: (req: ResumeRequest) => Promise<void>;
+  mock?: boolean;
 }) {
   const isReview = interrupt.type === "pr_review_gate";
-  const [edited, setEdited] = useState<ReviewDraft>(
-    interrupt.payload as unknown as ReviewDraft,
-  );
+  const [edited, setEdited] = useState<ReviewDraft>(interrupt.payload as unknown as ReviewDraft);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -51,59 +51,65 @@ export function CosignGate({
   const finalDiff = (interrupt.payload?.final_diff as string) ?? "";
 
   return (
-    <div className="rounded-lg border-2 border-black p-4 dark:border-white">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-lg">✋</span>
-        <h2 className="text-lg font-semibold">
-          {isReview ? "Cosign this review" : "Cosign & open PR"}
-        </h2>
-        <span className="ml-auto text-xs text-neutral-500">
-          posted as you · not a bot
-        </span>
+    <div
+      className="panel ticks rise"
+      style={{ borderColor: "var(--cyan-dim)", boxShadow: "0 0 40px rgba(52,226,226,0.10)" }}
+    >
+      <span className="tick-bl" /><span className="tick-br" />
+      <div className="flex items-center justify-between border-b border-[var(--cyan-dim)] px-4 py-3">
+        <div className="flex items-center gap-3">
+          <SignatureStamp />
+          <h2 className="text-base">{isReview ? "cosign this review" : "cosign & open PR"}</h2>
+        </div>
+        <span className="label">posted as you · not a bot</span>
       </div>
 
-      {isReview ? (
-        <ReviewEditor initial={edited} onChange={setEdited} />
-      ) : (
-        <div className="space-y-3">
-          <TranscriptViewer rounds={transcript} />
-          <div>
-            <span className="text-xs font-medium text-neutral-500">Final diff</span>
-            <DiffViewer diff={finalDiff} />
+      <div className="p-4">
+        {isReview ? (
+          <ReviewEditor initial={edited} onChange={setEdited} />
+        ) : (
+          <div className="space-y-3">
+            <TranscriptViewer rounds={transcript} />
+            <div>
+              <span className="label">
+                final diff
+                {mock && (
+                  <span className="ml-2" style={{ color: "var(--warn)" }}>
+                    · synthetic (mock — not your repo)
+                  </span>
+                )}
+              </span>
+              <div className="mt-1">
+                <DiffViewer diff={finalDiff} />
+              </div>
+            </div>
           </div>
+        )}
+
+        <textarea
+          className="field mt-4 resize-y"
+          rows={2}
+          placeholder="revision feedback (optional, used with Revise)…"
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+        />
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button disabled={busy} onClick={() => resolve("approve")} className="btn btn-primary">
+            ◇ cosign <kbd className="ml-1">a</kbd>
+          </button>
+          <button disabled={busy} onClick={() => resolve("revise")} className="btn">
+            revise <kbd className="ml-1">r</kbd>
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => resolve("reject")}
+            className="btn"
+            style={{ color: "var(--danger)", borderColor: "rgba(248,113,113,0.3)" }}
+          >
+            reject <kbd className="ml-1">x</kbd>
+          </button>
         </div>
-      )}
-
-      <textarea
-        className="mt-3 w-full rounded border border-neutral-300 bg-transparent p-2 text-sm dark:border-neutral-700"
-        rows={2}
-        placeholder="Revision feedback (optional, used with Revise)…"
-        value={feedback}
-        onChange={(e) => setFeedback(e.target.value)}
-      />
-
-      <div className="mt-3 flex gap-2">
-        <button
-          disabled={busy}
-          onClick={() => resolve("approve")}
-          className="rounded bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          Cosign <kbd className="ml-1 opacity-60">a</kbd>
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => resolve("revise")}
-          className="rounded border border-neutral-300 px-4 py-2 text-sm dark:border-neutral-700"
-        >
-          Revise <kbd className="ml-1 opacity-60">r</kbd>
-        </button>
-        <button
-          disabled={busy}
-          onClick={() => resolve("reject")}
-          className="rounded border border-red-300 px-4 py-2 text-sm text-red-600"
-        >
-          Reject <kbd className="ml-1 opacity-60">x</kbd>
-        </button>
       </div>
     </div>
   );

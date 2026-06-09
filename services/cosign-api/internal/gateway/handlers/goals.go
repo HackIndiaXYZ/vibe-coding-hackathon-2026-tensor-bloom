@@ -148,7 +148,15 @@ func (h *GoalsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, r, http.StatusNotFound, "GOAL_NOT_FOUND", "goal not found")
 		return
 	}
-	detail := apitypes.GoalDetail{GoalSummary: toSummary(goal), Description: deref(goal.Description)}
+	// Initialize as empty (non-nil) slices so JSON serializes [] not null — the
+	// web client treats these as arrays (.find/.length/.reduce).
+	detail := apitypes.GoalDetail{
+		GoalSummary:   toSummary(goal),
+		Description:   deref(goal.Description),
+		Interrupts:    []apitypes.Interrupt{},
+		Transcript:    []apitypes.CriticIteration{},
+		CostBreakdown: []apitypes.CostRow{},
+	}
 
 	if ints, err := h.Q.ListInterruptsByGoal(r.Context(), goal.ID); err == nil {
 		for _, it := range ints {

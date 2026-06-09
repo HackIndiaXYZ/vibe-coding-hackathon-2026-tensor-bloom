@@ -226,6 +226,11 @@ class IdentityServiceStub:
                 request_serializer=orchestration__pb2.EmitAuditLogRequest.SerializeToString,
                 response_deserializer=orchestration__pb2.EmitAuditLogResponse.FromString,
                 _registered_method=True)
+        self.GetUserLLMSettings = channel.unary_unary(
+                '/cosign.orchestration.v1.IdentityService/GetUserLLMSettings',
+                request_serializer=orchestration__pb2.GetUserLLMSettingsRequest.SerializeToString,
+                response_deserializer=orchestration__pb2.GetUserLLMSettingsResponse.FromString,
+                _registered_method=True)
 
 
 class IdentityServiceServicer:
@@ -257,6 +262,15 @@ class IdentityServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetUserLLMSettings(self, request, context):
+        """Return the user's per-tool routing overrides + their decrypted provider API
+        keys (BYO). Same trust boundary as GetUserOAuthToken: decrypted in cosign-api
+        memory, handed to the worker, never logged.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_IdentityServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -274,6 +288,11 @@ def add_IdentityServiceServicer_to_server(servicer, server):
                     servicer.EmitAuditLog,
                     request_deserializer=orchestration__pb2.EmitAuditLogRequest.FromString,
                     response_serializer=orchestration__pb2.EmitAuditLogResponse.SerializeToString,
+            ),
+            'GetUserLLMSettings': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetUserLLMSettings,
+                    request_deserializer=orchestration__pb2.GetUserLLMSettingsRequest.FromString,
+                    response_serializer=orchestration__pb2.GetUserLLMSettingsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -361,6 +380,33 @@ class IdentityService:
             '/cosign.orchestration.v1.IdentityService/EmitAuditLog',
             orchestration__pb2.EmitAuditLogRequest.SerializeToString,
             orchestration__pb2.EmitAuditLogResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetUserLLMSettings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/cosign.orchestration.v1.IdentityService/GetUserLLMSettings',
+            orchestration__pb2.GetUserLLMSettingsRequest.SerializeToString,
+            orchestration__pb2.GetUserLLMSettingsResponse.FromString,
             options,
             channel_credentials,
             insecure,
