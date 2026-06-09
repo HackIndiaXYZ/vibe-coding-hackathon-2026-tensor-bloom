@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS vector;        -- pgvector installed, unused in v
 CREATE EXTENSION IF NOT EXISTS pgcrypto;      -- gen_random_uuid()
 
 -- ── Users + GitHub App installations ──────────────────────────────────────────
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id                            BIGSERIAL PRIMARY KEY,
     uuid                          UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     github_id                     BIGINT UNIQUE NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE users (
     last_login_at                 TIMESTAMPTZ
 );
 
-CREATE TABLE installations (
+CREATE TABLE IF NOT EXISTS installations (
     id                      BIGSERIAL PRIMARY KEY,
     github_installation_id  BIGINT UNIQUE NOT NULL,
     account_login           TEXT NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE installations (
     installed_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE repositories (
+CREATE TABLE IF NOT EXISTS repositories (
     id               BIGSERIAL PRIMARY KEY,
     github_repo_id   BIGINT UNIQUE NOT NULL,
     full_name        TEXT NOT NULL,                      -- "octocat/hello-world"
@@ -35,10 +35,10 @@ CREATE TABLE repositories (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_repos_install ON repositories(installation_id);
+CREATE INDEX IF NOT EXISTS idx_repos_install ON repositories(installation_id);
 
 -- ── Agents (minimal — capability checks reference this) ───────────────────────
-CREATE TABLE agents (
+CREATE TABLE IF NOT EXISTS agents (
     id               BIGSERIAL PRIMARY KEY,
     uuid             UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     role             TEXT NOT NULL,                      -- 'implementer' | 'reviewer' | 'critic'
@@ -50,7 +50,7 @@ CREATE TABLE agents (
 );
 
 -- ── Goals + Tasks ─────────────────────────────────────────────────────────────
-CREATE TABLE goals (
+CREATE TABLE IF NOT EXISTS goals (
     id                   BIGSERIAL PRIMARY KEY,
     uuid                 UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     user_id              BIGINT NOT NULL REFERENCES users(id),
@@ -70,11 +70,11 @@ CREATE TABLE goals (
     completed_at         TIMESTAMPTZ
 );
 
-CREATE INDEX idx_goals_user_status ON goals(user_id, status);
-CREATE INDEX idx_goals_repo        ON goals(repository_id);
-CREATE INDEX idx_goals_created     ON goals(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_goals_user_status ON goals(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_goals_repo        ON goals(repository_id);
+CREATE INDEX IF NOT EXISTS idx_goals_created     ON goals(created_at DESC);
 
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id             BIGSERIAL PRIMARY KEY,
     uuid           UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     goal_id        BIGINT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
@@ -92,16 +92,16 @@ CREATE TABLE tasks (
     completed_at   TIMESTAMPTZ
 );
 
-CREATE INDEX idx_tasks_goal ON tasks(goal_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id);
 
-CREATE TABLE task_dependencies (
+CREATE TABLE IF NOT EXISTS task_dependencies (
     task_id        BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     depends_on_id  BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     PRIMARY KEY (task_id, depends_on_id)
 );
 
 -- ── Critic iterations (Flow B transcript) ─────────────────────────────────────
-CREATE TABLE critic_iterations (
+CREATE TABLE IF NOT EXISTS critic_iterations (
     id                  BIGSERIAL PRIMARY KEY,
     goal_id             BIGINT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
     round_number        INTEGER NOT NULL,               -- 0, 1, 2, ...
@@ -115,10 +115,10 @@ CREATE TABLE critic_iterations (
     UNIQUE (goal_id, round_number)
 );
 
-CREATE INDEX idx_critic_iter_goal ON critic_iterations(goal_id, round_number);
+CREATE INDEX IF NOT EXISTS idx_critic_iter_goal ON critic_iterations(goal_id, round_number);
 
 -- ── LLM messages (per-task history + cost source data) ────────────────────────
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id             BIGSERIAL PRIMARY KEY,
     task_id        BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     role           TEXT NOT NULL,                        -- system | user | assistant | tool
@@ -132,10 +132,10 @@ CREATE TABLE messages (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_messages_task ON messages(task_id);
+CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id);
 
 -- ── Interrupts (HITL gates) ───────────────────────────────────────────────────
-CREATE TABLE interrupts (
+CREATE TABLE IF NOT EXISTS interrupts (
     id             BIGSERIAL PRIMARY KEY,
     uuid           UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     goal_id        BIGINT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
@@ -148,10 +148,10 @@ CREATE TABLE interrupts (
     resolved_at    TIMESTAMPTZ
 );
 
-CREATE INDEX idx_interrupts_pending ON interrupts(goal_id) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_interrupts_pending ON interrupts(goal_id) WHERE resolved_at IS NULL;
 
 -- ── Audit log ─────────────────────────────────────────────────────────────────
-CREATE TABLE audit_log (
+CREATE TABLE IF NOT EXISTS audit_log (
     id            BIGSERIAL PRIMARY KEY,
     actor_type    TEXT NOT NULL,                         -- user | agent | system
     actor_id      BIGINT,
@@ -162,6 +162,6 @@ CREATE TABLE audit_log (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_goal       ON audit_log(goal_id, created_at DESC);
-CREATE INDEX idx_audit_actor      ON audit_log(actor_type, actor_id, created_at DESC);
-CREATE INDEX idx_audit_event_type ON audit_log(event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_goal       ON audit_log(goal_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_actor      ON audit_log(actor_type, actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_log(event_type, created_at DESC);

@@ -51,13 +51,31 @@ for svc in postgres redis; do
   done
 done
 
-# ── 6. migrations ─────────────────────────────────────────────────────────────
+# ── 6. migrations (idempotent — tracked in schema_migrations) ─────────────────
 log "applying migrations..."
+psql_cmd() { docker compose exec -T postgres psql -v ON_ERROR_STOP=1 \
+  -U "${POSTGRES_USER:-cosign}" -d "${POSTGRES_DB:-cosign}" "$@"; }
+
+psql_cmd -c "CREATE TABLE IF NOT EXISTS schema_migrations (
+  filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW());" >/dev/null
+
+# Backfill: if the core schema already exists but isn't recorded, mark 0001 applied
+# so a pre-migration-ledger database doesn't try to re-create existing tables.
+if psql_cmd -tAc "SELECT to_regclass('public.users') IS NOT NULL" | grep -q t; then
+  psql_cmd -c "INSERT INTO schema_migrations (filename) VALUES ('0001_init.sql')
+               ON CONFLICT DO NOTHING;" >/dev/null
+fi
+
 for f in "$INFRA_DIR"/postgres/migrations/*.sql; do
   [[ -e "$f" ]] || continue
-  log "  -> $(basename "$f")"
-  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 \
-    -U "${POSTGRES_USER:-cosign}" -d "${POSTGRES_DB:-cosign}" < "$f"
+  name="$(basename "$f")"
+  if psql_cmd -tAc "SELECT 1 FROM schema_migrations WHERE filename='$name'" | grep -q 1; then
+    log "  -> $name (already applied)"
+    continue
+  fi
+  log "  -> $name"
+  psql_cmd < "$f"
+  psql_cmd -c "INSERT INTO schema_migrations (filename) VALUES ('$name') ON CONFLICT DO NOTHING;" >/dev/null
 done
 
 # ── 7. app services (optional) ────────────────────────────────────────────────
