@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import type { ProviderModels, RoleSlot, RouteChoice } from "@/lib/types";
+import { Select } from "@/components/blueprint/Select";
+
+const CUSTOM = "__custom__";
 
 function RouteRow({
   title,
@@ -24,10 +28,12 @@ function RouteRow({
   onChange: (c: RouteChoice | null) => void;
 }) {
   const models = catalog.find((c) => c.provider === choice?.provider)?.models ?? [];
-  const id = `models-${title.replace(/\s+/g, "-")}`;
+  const isCustomModel = Boolean(choice?.model && !models.includes(choice.model));
+  const [customOpen, setCustomOpen] = useState(isCustomModel);
+
   return (
     <div
-      className="grid grid-cols-[1fr_120px_1fr] items-center gap-3 px-4 py-3"
+      className="grid grid-cols-[1fr_140px_1fr] items-center gap-3 px-4 py-3"
       style={accent ? { background: "var(--cyan-deep)" } : undefined}
     >
       <div>
@@ -38,31 +44,42 @@ function RouteRow({
         <div className="col-span-2 mono text-xs text-[var(--text-faint)]">deterministic — no model</div>
       ) : (
         <>
-          <select
-            className="field"
+          <Select
             value={choice?.provider ?? ""}
-            onChange={(e) => {
-              const provider = e.target.value;
+            placeholder="default"
+            options={[{ value: "", label: "default" }, ...providers.map((p) => ({ value: p }))]}
+            onChange={(provider) => {
               if (!provider) return onChange(null);
               const pm = catalog.find((c) => c.provider === provider)?.models ?? [];
               const keep = choice?.model && pm.includes(choice.model) ? choice.model : (pm[0] ?? "");
+              setCustomOpen(false);
               onChange({ provider, model: keep });
             }}
-          >
-            <option value="">default</option>
-            {providers.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <div className="flex items-center gap-2">
+          />
+          {customOpen || isCustomModel ? (
             <input
               className="field"
-              list={id}
-              placeholder={choice?.provider ? "model id" : placeholder}
+              autoFocus
+              placeholder="custom model id"
               disabled={!choice?.provider}
               value={choice?.model ?? ""}
               onChange={(e) => onChange({ provider: choice?.provider ?? "", model: e.target.value })}
             />
-            <datalist id={id}>{models.map((m) => <option key={m} value={m} />)}</datalist>
-          </div>
+          ) : (
+            <Select
+              value={choice?.model ?? ""}
+              placeholder={choice?.provider ? "model" : placeholder}
+              disabled={!choice?.provider}
+              options={[...models.map((m) => ({ value: m })), { value: CUSTOM, label: "custom…" }]}
+              onChange={(m) => {
+                if (m === CUSTOM) {
+                  setCustomOpen(true);
+                  return;
+                }
+                onChange({ provider: choice?.provider ?? "", model: m });
+              }}
+            />
+          )}
         </>
       )}
     </div>

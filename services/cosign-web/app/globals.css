@@ -162,3 +162,5 @@ kbd {
 .rise { animation: bp-rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 @keyframes bp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .pulse { animation: bp-pulse 1.4s ease-in-out infinite; }
+@keyframes bp-pop { from { opacity: 0; transform: translateY(-4px) scaleY(0.96); } to { opacity: 1; transform: none; } }
+.bp-pop { animation: bp-pop 0.14s cubic-bezier(0.2, 0.7, 0.2, 1) both; transform-origin: top; }
