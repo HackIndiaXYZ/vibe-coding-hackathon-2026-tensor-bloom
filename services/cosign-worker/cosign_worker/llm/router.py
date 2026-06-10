@@ -129,7 +129,7 @@ class LLMRouter:
             cached = await self._cache_get(cache_key)
             if cached is not None:
                 if task_id is not None:
-                    await self._record(task_id, role, tool, cached)
+                    await self._record(task_id, role, tool, cached, operator_funded=False)
                 return cached
 
         chain = [spec, *spec.get("fallback", [])]
@@ -158,7 +158,13 @@ class LLMRouter:
             if self._redis is not None and cache_key:
                 await self._cache_put(cache_key, result)
             if task_id is not None:
-                await self._record(task_id, role, tool, result)
+                # operator-funded = the call used the operator's env key (no user BYO
+                # key for this provider) → counts toward the per-user demo budget cap.
+                op_funded = (
+                    s.get("provider") not in ("mock", None)
+                    and not bool((key_overrides or {}).get(s.get("provider")))
+                )
+                await self._record(task_id, role, tool, result, operator_funded=op_funded)
             return result
 
         raise last_err or RuntimeError("no provider in chain")
@@ -226,16 +232,19 @@ class LLMRouter:
         )
 
     # ── cost recording ───────────────────────────────────────────────────────
-    async def _record(self, task_id: int, role: str | None, tool: str | None, r: LLMResult) -> None:
+    async def _record(
+        self, task_id: int, role: str | None, tool: str | None, r: LLMResult,
+        operator_funded: bool = False,
+    ) -> None:
         if self._pool is None:
             return
         await self._pool.execute(
             """
             INSERT INTO messages
-                (task_id, role, content, tool_name, tokens_in, tokens_out, cached_tokens, cost_usd)
-            VALUES ($1, 'assistant', $2, $3, $4, $5, $6, $7)
+                (task_id, role, content, tool_name, tokens_in, tokens_out, cached_tokens, cost_usd, operator_funded)
+            VALUES ($1, 'assistant', $2, $3, $4, $5, $6, $7, $8)
             """,
-            task_id, r.content, tool, r.tokens_in, r.tokens_out, r.cached_tokens, r.cost_usd,
+            task_id, r.content, tool, r.tokens_in, r.tokens_out, r.cached_tokens, r.cost_usd, operator_funded,
         )
 
     # ── exact cache ──────────────────────────────────────────────────────────

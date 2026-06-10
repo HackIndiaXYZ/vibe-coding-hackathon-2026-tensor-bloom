@@ -31,6 +31,12 @@ type Config struct {
 	// Web app origin (CORS + post-login redirect)
 	WebBaseURL string `envconfig:"WEB_BASE_URL" default:"http://localhost:3000"`
 
+	// Demo budget: per-user lifetime cap (USD) on the SHARED operator LLM key.
+	// 0 = disabled (no cap, e.g. local dev). Users with their own key are uncapped.
+	DemoUserCapUSD      float64 `envconfig:"DEMO_USER_CAP_USD" default:"0"`
+	DemoDefaultProvider string  `envconfig:"DEMO_DEFAULT_PROVIDER" default:"anthropic"`
+	DemoDefaultModel    string  `envconfig:"DEMO_DEFAULT_MODEL" default:"anthropic/claude-haiku-4-5-20251001"`
+
 	// Cookies
 	CookieSecure bool   `envconfig:"COOKIE_SECURE" default:"false"`
 	CookieDomain string `envconfig:"COOKIE_DOMAIN" default:""`

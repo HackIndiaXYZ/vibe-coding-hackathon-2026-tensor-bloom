@@ -135,3 +135,11 @@ ON CONFLICT (user_id, provider) DO UPDATE
 
 -- name: DeleteUserProviderKey :exec
 DELETE FROM user_provider_keys WHERE user_id = $1 AND provider = $2;
+
+-- ── Per-user demo budget (operator-funded spend only) ─────────────────────────
+-- name: UserOperatorSpend :one
+SELECT COALESCE(SUM(m.cost_usd), 0)::float8
+FROM messages m
+JOIN tasks t ON m.task_id = t.id
+JOIN goals g ON t.goal_id = g.id
+WHERE g.user_id = $1 AND m.operator_funded;

@@ -725,3 +725,19 @@ func (q *Queries) UpsertUserRouting(ctx context.Context, arg UpsertUserRoutingPa
 	_, err := q.db.Exec(ctx, upsertUserRouting, arg.UserID, arg.RoutingJson)
 	return err
 }
+
+const userOperatorSpend = `-- name: UserOperatorSpend :one
+SELECT COALESCE(SUM(m.cost_usd), 0)::float8
+FROM messages m
+JOIN tasks t ON m.task_id = t.id
+JOIN goals g ON t.goal_id = g.id
+WHERE g.user_id = $1 AND m.operator_funded
+`
+
+// ── Per-user demo budget (operator-funded spend only) ─────────────────────────
+func (q *Queries) UserOperatorSpend(ctx context.Context, userID int64) (float64, error) {
+	row := q.db.QueryRow(ctx, userOperatorSpend, userID)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
+}

@@ -31,10 +31,44 @@ var (
 )
 
 type GoalsHandler struct {
-	Q      *store.Queries
-	Crypto *identity.Crypto
-	Worker *orchestration.Client
-	Log    *slog.Logger
+	Q               *store.Queries
+	Crypto          *identity.Crypto
+	Worker          *orchestration.Client
+	Log             *slog.Logger
+	CapUSD          float64 // per-user demo budget on the shared key (0 = disabled)
+	DefaultProvider string  // operator default provider when the user hasn't overridden
+}
+
+// budgetAllowed reports whether the user may start a goal under the demo budget.
+// Users who fund the effective default provider with their OWN key are uncapped;
+// otherwise their operator-funded spend must be under CapUSD.
+func (h *GoalsHandler) budgetAllowed(ctx context.Context, userID int64) (bool, error) {
+	if h.CapUSD <= 0 {
+		return true, nil // cap disabled (dev)
+	}
+	// effective default provider: the user's _default override, else operator default
+	provider := h.DefaultProvider
+	if raw, err := h.Q.GetUserRouting(ctx, userID); err == nil && len(raw) > 0 {
+		var routing map[string]apitypes.RouteChoice
+		if json.Unmarshal(raw, &routing) == nil {
+			if d, ok := routing["_default"]; ok && d.Provider != "" {
+				provider = d.Provider
+			}
+		}
+	}
+	// has the user supplied their own key for that provider? -> self-funded, uncapped
+	if rows, err := h.Q.ListUserProviderKeys(ctx, userID); err == nil {
+		for _, row := range rows {
+			if row.Provider == provider {
+				return true, nil
+			}
+		}
+	}
+	spend, err := h.Q.UserOperatorSpend(ctx, userID)
+	if err != nil {
+		return true, nil // fail open — don't block on a query error
+	}
+	return spend < h.CapUSD, nil
 }
 
 // Create handles POST /goals (Flow A: pr_review, Flow B: issue_implement).
@@ -43,6 +77,14 @@ func (h *GoalsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.CreateGoalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respond.Error(w, r, http.StatusBadRequest, "BAD_REQUEST", "invalid body")
+		return
+	}
+
+	// Demo budget gate: block once a user has spent the shared-key cap, unless
+	// they've added their own API key (then it's their money — uncapped).
+	if ok, _ := h.budgetAllowed(r.Context(), claims.UserID); !ok {
+		respond.Error(w, r, http.StatusPaymentRequired, "BUDGET_EXCEEDED",
+			"Demo budget reached — add your own API key in Settings to keep going.")
 		return
 	}
 

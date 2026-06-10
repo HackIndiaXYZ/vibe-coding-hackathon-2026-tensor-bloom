@@ -1,58 +1,49 @@
 # Per-role / per-tool LLM routing (ARCHITECTURE §5.7).
-# Operators map each role/tool to its own provider + model + API key. Cheap work
-# (planning, criticism) goes to cheap models; premium models are reserved for the
-# value-critical implementer/reviewer passes.
+# DEMO default: every LLM role runs on Anthropic Haiku via the shared operator key
+# (ANTHROPIC_API_KEY). Haiku is cheap, which keeps the per-user $0.50 budget viable.
+# Users can override any role + bring their own key in /settings (uncapped).
 #
 # provider: none  -> deterministic local tool, no LLM call.
 # provider: mock  -> synthetic response, no API key (dev inner loop / CI).
-#
-# Set COSIGN_LLM_MOCK=1 is NOT how mocking is toggled — instead point a role at
-# provider: mock here, or run the whole graph against the mock defaults below by
-# using config/llm-routing.mock.yaml.
 
 defaults:
   provider: anthropic
-  model: claude-sonnet-4-6
+  model: claude-haiku-4-5-20251001
   api_key_env: ANTHROPIC_API_KEY
   temperature: 0.2
   fallback:
-    - { provider: openai, model: gpt-4o, api_key_env: OPENAI_API_KEY }
+    - { provider: groq, model: llama-3.3-70b-versatile, api_key_env: GROQ_API_KEY }
 
 roles:
   plan_node:
     provider: anthropic
     model: claude-haiku-4-5-20251001
-    api_key_env: ANTHROPIC_CHEAP_API_KEY
+    api_key_env: ANTHROPIC_API_KEY
     temperature: 0.0
-    fallback:
-      - { provider: groq, model: llama-3.3-70b-versatile, api_key_env: GROQ_API_KEY }
-      - { provider: openai, model: gpt-4o-mini, api_key_env: OPENAI_API_KEY }
-
-  critic:
-    provider: groq
-    model: llama-3.3-70b-versatile
-    api_key_env: GROQ_API_KEY
-    temperature: 0.1
-    fallback:
-      - { provider: anthropic, model: claude-haiku-4-5-20251001, api_key_env: ANTHROPIC_CHEAP_API_KEY }
 
   implementer:
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-haiku-4-5-20251001
     api_key_env: ANTHROPIC_API_KEY
     temperature: 0.2
 
   reviewer:
     provider: anthropic
-    model: claude-sonnet-4-6
+    model: claude-haiku-4-5-20251001
     api_key_env: ANTHROPIC_API_KEY
     temperature: 0.2
+
+  critic:
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+    api_key_env: ANTHROPIC_API_KEY
+    temperature: 0.1
 
 tools:
   diff_analysis:
     provider: anthropic
     model: claude-haiku-4-5-20251001
-    api_key_env: ANTHROPIC_CHEAP_API_KEY
+    api_key_env: ANTHROPIC_API_KEY
   repo_map:
     provider: none
   lint:

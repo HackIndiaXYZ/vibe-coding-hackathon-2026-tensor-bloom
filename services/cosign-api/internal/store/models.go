@@ -90,17 +90,18 @@ type Interrupt struct {
 }
 
 type Message struct {
-	ID           int64              `json:"id"`
-	TaskID       int64              `json:"task_id"`
-	Role         string             `json:"role"`
-	Content      string             `json:"content"`
-	ToolName     *string            `json:"tool_name"`
-	ToolArgs     []byte             `json:"tool_args"`
-	TokensIn     *int32             `json:"tokens_in"`
-	TokensOut    *int32             `json:"tokens_out"`
-	CachedTokens *int32             `json:"cached_tokens"`
-	CostUsd      pgtype.Numeric     `json:"cost_usd"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ID             int64              `json:"id"`
+	TaskID         int64              `json:"task_id"`
+	Role           string             `json:"role"`
+	Content        string             `json:"content"`
+	ToolName       *string            `json:"tool_name"`
+	ToolArgs       []byte             `json:"tool_args"`
+	TokensIn       *int32             `json:"tokens_in"`
+	TokensOut      *int32             `json:"tokens_out"`
+	CachedTokens   *int32             `json:"cached_tokens"`
+	CostUsd        pgtype.Numeric     `json:"cost_usd"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	OperatorFunded bool               `json:"operator_funded"`
 }
 
 type Repository struct {

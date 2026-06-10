@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Panel } from "@/components/blueprint/Panel";
 
 export default function ResolvePage() {
@@ -11,15 +12,18 @@ export default function ResolvePage() {
   const [steer, setSteer] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [budget, setBudget] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr("");
+    setBudget(false);
     try {
       const { uuid } = await api.createGoal({ type: "issue_implement", issue_url: url, steer });
       router.push(`/goals/${uuid}`);
     } catch (e) {
+      setBudget(e instanceof ApiError && e.code === "BUDGET_EXCEEDED");
       setErr(e instanceof Error ? e.message : "failed");
       setBusy(false);
     }
@@ -56,7 +60,16 @@ export default function ResolvePage() {
               className="field mt-1 resize-y"
             />
           </label>
-          {err && <p className="mono text-xs text-[var(--danger)]">! {err}</p>}
+          {err && (
+            <p className="mono text-xs text-[var(--danger)]">
+              ! {err}{" "}
+              {budget && (
+                <Link href="/settings" className="underline" style={{ color: "var(--cyan)" }}>
+                  open settings →
+                </Link>
+              )}
+            </p>
+          )}
           <button disabled={busy} className="btn btn-primary">
             {busy ? "starting…" : "resolve with cosign →"}
           </button>

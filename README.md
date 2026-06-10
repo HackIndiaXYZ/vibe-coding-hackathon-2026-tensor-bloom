@@ -1,136 +1,137 @@
 # Cosign
 
-> **AI ghostwriter for code reviews and pull requests.**
-> AI drafts the work. You edit. You cosign. The output ships **under your name** on GitHub — not a bot's.
+> **AI drafts the work. An AI critic refines it. You cosign.**
+> Reviews and pull requests ship **under your name** on GitHub — never a bot's.
 
-**Built by [Tensor-Bloom](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom) for HackIndia Vibe Coding Hackathon 2026 · Submission target: 2026-06-10**
+**Built by [Tensor-Bloom](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom) for HackIndia Vibe Coding Hackathon 2026.**
 
-[![Status: Planning](https://img.shields.io/badge/status-planning-yellow.svg)](docs/ROADMAP.md)
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen.svg)](https://cosign.34-131-58-38.sslip.io)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Docs: PRD](https://img.shields.io/badge/docs-PRD-blue.svg)](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/PRD.md)
-[![Docs: ARCHITECTURE](https://img.shields.io/badge/docs-ARCHITECTURE-blue.svg)](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/ARCHITECTURE.md)
 
 ---
 
-## What is Cosign?
+## What it does (and how)
 
-Cosign is a **human-in-the-loop web app for code reviews and issue → PR work.** A developer opens Cosign, points it at any PR or any issue (on a repo they own, or any public repo), and clicks one of two buttons:
+Cosign is a **human-in-the-loop web app** for code review and issue→PR work. You point it at any GitHub PR or issue and click one of two buttons — the agents do the work, and **you cosign once** before anything ships, attributed to you via your OAuth token (no `cosign[bot]`).
 
-- **[Review with Cosign]** — an AI reviewer agent reads the PR and drafts a structured review in an inline editor. The user edits the draft to their voice, clicks Cosign, and the review posts on the PR **as the user** via OAuth — no bot account on the public record.
-- **[Resolve with Cosign]** — an implementer agent and a critic agent iterate on the issue inside a sandboxed container, refining the diff until a numeric self-satisfaction score crosses a threshold (or a max-iteration cap is hit). The user sees the full iteration transcript, cosigns once at the end, and the PR opens **authored by the user**.
-
-The whole system is engineered around one principle: **AI amplifies your voice. AI is invisible to the rest of GitHub.**
-
----
-
-## What makes Cosign different
-
-Most AI dev tools fall into three patterns:
-- **Autonomous bots** (Devin, Sweep) — ship code you didn't review.
-- **Webhook-driven review bots** (CodeRabbit, Greptile, Qodo) — post reviews as their bot account, on every PR.
-- **Inline IDE assistants** (Cursor, Copilot, Aider) — useful but local-only.
-
-Cosign sits in a different category, anchored on six design choices:
-
-| # | Design choice | Why it matters |
-|---|---|---|
-| 1 | **Cosign as a UX primitive** | Every side-effectful action (push, PR, comment, review) requires a literal human cosign gesture. The gate is the product. |
-| 2 | **AI critic drives the iteration loop — not you** | Copilot makes *you* the critic across rounds (bot pushes → you comment → repeat). Cosign runs an AI critic in a loop *inside the worker* until convergence. You enter **once**, at the end. 3 rounds = 3 context switches in Copilot, 1 in Cosign. |
-| 3 | **Iteration transcript as a first-class artifact** | You don't just see the final diff — you see every round of critic pushback and implementer revision. That's the basis for cosigning meaningfully instead of rubber-stamping. |
-| 4 | **User-initiated, not webhook-driven** | The agent runs because you clicked, not because GitHub fired an event. No bot lurking on your PRs. |
-| 5 | **Posted as you, on any public repo** | Reviews/PRs are authored by the invoking user via OAuth — never a `cosign[bot]` account. Works on repos you own (App-installed) AND any public upstream repo (via OAuth fork-and-PR). |
-| 6 | **Cost-efficient by design** | Multi-layer caching (>50% hit-rate target) + per-role LLM routing (cheap models for planning/criticism, premium for implementation). **Target: <$0.10 per shipped PR.** ~3–6× cheaper than running everything through a single premium model. |
-
-For the full pitch + competitive analysis: [PRD §5 — Competitive Positioning](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/PRD.md#5-competitive-positioning).
-
----
-
-## Two flows at a glance
-
+### Flow A — Review a PR
 ```
-Flow A — User-Initiated PR Review
-  User clicks [Review with Cosign] on any PR
-       │
-       ▼
-  Reviewer agent runs in sandbox → drafts a structured review
-       │
-       ▼
-  Inline editor surfaces the draft → user edits → user cosigns
-       │
-       ▼
-  Review posts on the PR, authored by the user (OAuth, not a bot)
+[Review with Cosign] → reviewer agent reads the PR diff (GitHub API)
+   → drafts a structured review (summary · risk · per-file comments · asks · praise)
+   → you edit it inline → cosign → it posts on the PR AS YOU
+```
+**How:** `plan → reviewer → gate`. The reviewer reads the diff over the GitHub API and the `diff_analysis` tool, then an LLM drafts the review; cosign-api posts it with your OAuth token. No sandbox needed.
 
+### Flow B — Resolve an issue → PR
+```
+[Resolve with Cosign] → implementer ⇄ critic loop inside a sandbox container
+   round 0: implementer edits files (self-satisfaction 0.62) → critic feedback
+   round 1: implementer revises (0.78)                       → critic feedback
+   round 2: implementer revises (0.91) → crosses threshold   → exits
+   → you review the full transcript + final diff → cosign → PR opens AS YOU
+```
+**How:** the worker clones your repo into a **fresh per-task Docker sandbox**, builds a `repo_map` (tree-sitter), then runs a **LangGraph** `plan → (implementer ⇄ critic) → gate → finalize` loop. The implementer edits real files (`file_ops`), runs `test_runner`/`lint`, and the diff is the real `git diff`. The loop runs to a numeric self-satisfaction threshold (or max-iter), you cosign, and the branch is pushed + PR opened with your token.
 
-Flow B — User-Initiated Issue → PR
-  User clicks [Resolve with Cosign] on any issue (own or upstream)
-       │
-       ▼
-  Implementer ↔ Critic loop in sandbox:
-    round 0: implementer diff (score 0.62) → critic feedback
-    round 1: implementer revises (0.78)    → critic feedback
-    round 2: implementer revises (0.91)    → exits loop
-       │
-       ▼
-  TranscriptViewer surfaces every round → user cosigns
-       │
-       ▼
-  PR opens on GitHub, authored by the user
-  (own repo direct; upstream repo via OAuth fork-and-PR)
+### What makes it different
+- **The gate is the product** — every side-effect (push, PR, review) needs a literal human cosign.
+- **An AI critic drives iteration, not you** — you enter *once*, at the end, with the whole transcript in front of you.
+- **Live activity stream + revisions** — watch each agent fire and each tool call stream in (SSE), and browse every revised version of the code with a round-to-round diff compare.
+- **Posted as you** — on repos you own *and* any public upstream repo, via OAuth.
+- **Cost-transparent + per-role LLM routing** — a live `$/goal` ledger; cheap models for planning/criticism, premium reserved for the value-critical steps. Bring your own key per role, or use the shared demo key.
+
+---
+
+## 🔗 Live demo
+
+**[https://cosign.34-131-58-38.sslip.io](https://cosign.34-131-58-38.sslip.io)**
+
+1. **Sign in with GitHub** (top-right).
+2. **Resolve an issue** — paste an issue URL on **a repo you own** → watch the implementer⇄critic loop run live → cosign → a PR opens on your repo.
+3. **Review a PR** — paste any PR URL → edit the drafted review → cosign → it posts as you.
+4. **Settings** — a shared **Anthropic Haiku** key is provided (capped at **$0.50/user**); add your own provider key to remove the cap and pick any model per role.
+
+---
+
+## Run it locally
+
+**Prerequisites:** Docker + Docker Compose v2. (A GitHub OAuth App and LLM keys are optional — without them it runs on a keyless **mock** LLM.)
+
+```bash
+git clone <this-repo> cosign && cd cosign
+
+# 1. (optional) point a GitHub OAuth App's callback at:
+#    http://localhost:8080/auth/github/callback
+#    and put its client id/secret + an ANTHROPIC_API_KEY/GROQ_API_KEY in infra/.env
+
+# 2. one command: builds the sandbox image, starts Postgres+Redis, runs migrations,
+#    builds + starts api + worker + web
+./scripts/setup-dev.sh --with-app
+
+# → http://localhost:3000
 ```
 
----
+`scripts/setup-dev.sh` also generates the JWT + AES keys (`scripts/gen-keys.sh`) and is **re-run-safe** (migration ledger). Configuration lives in `infra/.env` (see `infra/.env.example`):
 
-## Architecture at a glance
-
-3-service modular monolith. Code-level detail in [ARCHITECTURE.md](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/ARCHITECTURE.md).
-
-```
-                 Browser  (HTTPS + SSE)
-                     │
-                     ▼
-    ┌────────────────────────────────────┐
-    │ cosign-api  (Go · chi · sqlc)      │
-    │ gateway · identity · reputation    │
-    └────────────────┬───────────────────┘
-                     │ gRPC
-                     ▼
-    ┌────────────────────────────────────┐
-    │ cosign-worker  (Python · LangGraph)│
-    │ orchestration · tools · sandbox    │
-    │ LLM router (per-role) · 5-layer cache │
-    └────────────────┬───────────────────┘
-                     │
-        ┌────────────┴────────────┐
-        ▼                         ▼
-    PostgreSQL 16              Redis 7
-    + pgvector               + Streams
-                             + Sorted sets
-
-    cosign-web  (Next.js 15 · React 19 · Tailwind)  ←  served separately
-```
-
-**Per-role LLM routing example** (operator-configured in `config/llm-routing.yaml`):
-
-| Role | Model | Why |
-|---|---|---|
-| `plan_node` | Claude Haiku 4.5 | Task decomposition — cheap model is plenty |
-| `critic` | Groq Llama 3.3 70B | Fast iteration; fires N times per goal |
-| `implementer` | Claude Sonnet 4.6 | Value-critical; the actual code |
-| `reviewer` | Claude Sonnet 4.6 | Value-critical; the user's voice |
-| `tools.lint`, `tools.test_runner`, `tools.repo_map` | *(no LLM)* | Deterministic local code |
-
----
-
-## Documentation
-
-All design and planning docs live on the [`docs` branch](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/tree/docs/docs) (will be merged to `main` once code lands):
-
-| Doc | Purpose |
+| Var | Purpose |
 |---|---|
-| [PRD.md](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/PRD.md) | Product: vision, problem, scenarios, features, competitive positioning, decision log |
-| [ARCHITECTURE.md](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/ARCHITECTURE.md) | Engineering: services, schemas, caching, sandbox, GitHub integration, deployment |
-| [ROADMAP.md](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/ROADMAP.md) | Delivery: 8-day day-by-day plan, demo script, cut lines |
-| [WORKSTREAMS.md](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/WORKSTREAMS.md) | Team: per-workstream briefings (Go / Python / Frontend / Docker) for parallel execution |
+| `GITHUB_OAUTH_CLIENT_ID` / `_SECRET` | sign-in + acting as the user |
+| `ANTHROPIC_API_KEY` / `GROQ_API_KEY` | LLM providers |
+| `LLM_ROUTING_CONFIG` | `config/llm-routing.yaml` (real) or `config/llm-routing.mock.yaml` (keyless) |
+| `DEMO_USER_CAP_USD` | per-user $ cap on the shared key (`0` = disabled) |
+
+Rebuild after a change: `docker compose -f infra/docker-compose.yml --profile app up -d --build <service>`.
+Deploy to a public URL on GCP: see **[`docs/DEPLOY_GCP.md`](docs/DEPLOY_GCP.md)** (single Compute Engine VM + Caddy auto-TLS).
+
+---
+
+## Architecture
+
+A **3-service modular monolith** behind Caddy. The worker spawns one ephemeral, network-isolated Docker container per agent task.
+
+```
+                         Browser (HTTPS + SSE)
+                                │
+                          Caddy (TLS, reverse proxy)
+                     /api/* │                 │ /*
+                            ▼                 ▼
+        ┌───────────────────────────┐   ┌──────────────────────────┐
+        │ cosign-api  (Go·chi·sqlc) │   │ cosign-web (Next.js 16)  │
+        │ OAuth/JWT · REST · SSE    │   │ Engineered-Blueprint UI  │
+        │ identity gRPC · budget    │   │ live feed · revisions    │
+        └─────────────┬─────────────┘   └──────────────────────────┘
+                      │ gRPC (orchestration)
+                      ▼
+        ┌───────────────────────────────────────────────┐
+        │ cosign-worker  (Python · LangGraph · LiteLLM) │
+        │ plan → reviewer | implementer⇄critic → gate   │
+        │ tools: github · code · file_ops · test_runner │
+        │        lint · repo_map · diff_analysis        │
+        │ per-role LLM router (+BYO keys) · SandboxDriver│
+        └───────┬───────────────────────────────┬───────┘
+                │ asyncpg / redis               │ docker.sock
+                ▼                                ▼
+        PostgreSQL 16   Redis 7 (SSE streams)   per-task sandbox containers
+                                                (cosign_sandbox_net, egress-limited)
+```
+
+**Service responsibilities**
+- **cosign-api (Go)** — the only public service: GitHub OAuth + RS256 JWT, REST, the SSE multiplexer (fans Redis streams to browsers), the identity gRPC server (capability checks, hands the worker the user's decrypted OAuth token + per-user LLM keys), the audit log, and the per-user **budget gate**.
+- **cosign-worker (Python)** — the brain: LangGraph state machine for both flows, all agent roles + tools, the `SandboxDriver` (Docker-per-task), and the **per-role LLM router** (LiteLLM) — every model call goes through one place, with precedence `user override → user default → operator config → fallback → mock`.
+- **cosign-web (Next.js 16)** — the dark "Engineered Blueprint" UI: the cosign gate, inline review editor, the live **activity stream** (agent + tool-call events over SSE), the **revisions** browser, the cost ledger, and `/settings` (per-role model picker + BYO keys + budget).
+
+**Per-role LLM routing** (`config/llm-routing.yaml`, operator-set; users override in `/settings`):
+
+| Role / tool | Default | Why |
+|---|---|---|
+| `plan_node`, `implementer`, `reviewer`, `critic`, `diff_analysis` | Anthropic Claude Haiku (demo) | cheap → fits the per-user budget; swap any role to Sonnet/Groq/your key |
+| `repo_map`, `lint`, `test_runner` | *(no LLM)* | deterministic local code |
+
+**Key flows of data**
+- **Auth:** browser → OAuth → api stores the token AES-GCM-encrypted; the worker fetches+decrypts it over gRPC only at goal time, acts as the user on GitHub, never logs it.
+- **Live updates:** worker → Redis stream `stream:goal:{id}` → api SSE → browser (the activity feed replays full history on reconnect).
+- **Cost/budget:** every LLM call records `messages.cost_usd` (+ `operator_funded`); `$/goal` is a `GROUP BY`, and per-user shared-key spend gates the demo budget.
+
+**Data model** (PostgreSQL): `users`, `goals`, `tasks`, `messages`, `critic_iterations` (the transcript), `interrupts` (HITL gates), `audit_log`, `user_llm_settings` + `user_provider_keys` (BYO routing/keys). Migrations in `infra/postgres/migrations/`.
 
 ---
 
@@ -138,70 +139,20 @@ All design and planning docs live on the [`docs` branch](https://github.com/Hack
 
 | Layer | Stack |
 |---|---|
-| API service | Go 1.23 · chi · sqlc · grpc-go · go-redis · jwt · go-github |
+| API | Go 1.26 · chi · sqlc · grpc-go · go-redis · golang-jwt · go-github |
 | Worker | Python 3.12 · uv · FastAPI · LangGraph · LiteLLM · asyncpg · aiodocker · tree-sitter |
-| Web | Next.js 15 (App Router) · React 19 · TypeScript · Tailwind 4 · Shadcn |
-| Data | PostgreSQL 16 (+ pgvector) · Redis 7 |
-| Sandbox | Docker (per-task, network-isolated) · `SandboxDriver` interface for future k8s |
-| LLM | Anthropic Claude (Sonnet + Haiku) · Groq (Llama 3.3 70B) · OpenAI (fallback) via LiteLLM |
-| Infra | Docker Compose v2 · Caddy 2 (TLS) · GitHub App + OAuth |
+| Web | Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · framer-motion |
+| Data | PostgreSQL 16 (+ pgvector) · Redis 7 (streams) |
+| Sandbox | Docker (per-task, egress-restricted) · swappable `SandboxDriver` |
+| LLM | Anthropic · Groq · OpenAI via LiteLLM, per-role routing + BYO keys |
+| Infra | Docker Compose v2 · Caddy 2 (auto-TLS) · GCP Compute Engine |
 
 ---
 
-## Status
+## Documentation
 
-This is a hackathon project under active 8-day build (2026-06-02 → 2026-06-10).
+Design docs on the [`docs` branch](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/tree/docs/docs): **PRD** (product + competitive positioning), **ARCHITECTURE** (services, schema, caching, sandbox), **ROADMAP**, **WORKSTREAMS**. Deployment guide: [`docs/DEPLOY_GCP.md`](docs/DEPLOY_GCP.md).
 
-- ✅ Day 1 — Docs + planning complete (PRD, ARCHITECTURE, ROADMAP, WORKSTREAMS shipped)
-- ⏳ Day 2 — Scaffolding + GitHub App + OAuth
-- ⏳ Day 3 — Sandbox driver + first implementer agent
-- ⏳ Day 4 — Flow A end-to-end
-- ⏳ Day 5 — Flow B critic loop
-- ⏳ Day 6 — Fork-mode for upstream repos
-- ⏳ Day 7 — Caching + per-role routing + cost dashboard
-- ⏳ Day 8 — UI polish + deploy to demo VM + record demo video
-- 🎯 Day 9 (Jun 10) — Hackathon submission
+## Team & License
 
-Full breakdown: [ROADMAP.md](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/ROADMAP.md)
-
----
-
-## Demo
-
-A recorded demo video will be linked here on Day 8 (2026-06-09). The demo walks through:
-
-1. **Flow A** — review a PR, edit the AI draft, cosign, review posts as the user
-2. **Flow B** — resolve an issue, watch critic loop converge live, cosign, PR opens as the user
-3. **Fork-mode** — work on an upstream public repo via OAuth fork + upstream PR
-4. **Cost story** — `/cost` dashboard showing ~6× savings via per-role routing + caching
-
-Demo script: [ROADMAP §Demo Script](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom/blob/docs/docs/ROADMAP.md#demo-script-day-8-recording-target--3-to-4-minutes)
-
----
-
-## Quick start
-
-> Will be updated when code lands (Day 8). Initial dev setup will be:
-
-```bash
-git clone https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom.git cosign
-cd cosign
-cp infra/.env.example .env
-# fill in: GITHUB_APP_*, JWT_*, ANTHROPIC_API_KEY, GROQ_API_KEY
-./scripts/setup-dev.sh
-# → Cosign running at http://localhost:3000
-```
-
----
-
-## Team
-
-**Tensor-Bloom** · HackIndia Vibe Coding Hackathon 2026
-
-Repo: [github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom](https://github.com/HackIndiaXYZ/vibe-coding-hackathon-2026-tensor-bloom)
-
----
-
-## License
-
-[MIT](LICENSE)
+**Tensor-Bloom** · HackIndia Vibe Coding Hackathon 2026 · [MIT](LICENSE)

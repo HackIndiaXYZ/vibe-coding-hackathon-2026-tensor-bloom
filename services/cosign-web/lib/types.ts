@@ -110,6 +110,11 @@ export interface SettingsResponse {
   providers: ProviderStatus[];
   catalog: ProviderModels[];
   roles: RoleSlot[];
+  default_model: string;
+  shared_key_available: boolean;
+  cap_usd: number;
+  usage_usd: number;
+  using_own_key: boolean;
 }
 
 export type SSEEventType =

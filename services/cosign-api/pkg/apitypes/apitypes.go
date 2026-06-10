@@ -149,6 +149,13 @@ type SettingsResponse struct {
 	Providers []ProviderStatus       `json:"providers"`
 	Catalog   []ProviderModels       `json:"catalog"`
 	Roles     []RoleSlot             `json:"roles"`
+
+	// Demo budget surface
+	DefaultModel      string  `json:"default_model"`       // shared default model id
+	SharedKeyAvailable bool   `json:"shared_key_available"` // a shared key + cap is active
+	CapUSD            float64 `json:"cap_usd"`             // per-user budget on the shared key
+	UsageUSD          float64 `json:"usage_usd"`           // user's operator-funded spend so far
+	UsingOwnKey       bool    `json:"using_own_key"`       // user funds the default provider themselves
 }
 
 type PutRoutingRequest struct {

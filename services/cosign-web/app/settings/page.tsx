@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { RouteChoice, SettingsResponse } from "@/lib/types";
 import { Panel } from "@/components/blueprint/Panel";
+import { BudgetBanner } from "@/components/blueprint/Banner";
 import { ToastHost, useToast } from "@/components/blueprint/Toast";
 import { ModelRoutingTable } from "@/components/settings/ModelRoutingTable";
 import { ProviderKeyField } from "@/components/settings/ProviderKeyField";
@@ -84,6 +85,16 @@ export default function SettingsPage() {
           used everywhere — or override individual roles below. Bring your own provider keys (encrypted at
           rest, never returned to your browser). Anything still unset falls back to the operator config.
         </p>
+      </div>
+
+      <div className="rise" style={{ animationDelay: "20ms" }}>
+        <BudgetBanner
+          sharedKeyAvailable={data.shared_key_available}
+          usingOwnKey={data.using_own_key}
+          usageUsd={data.usage_usd}
+          capUsd={data.cap_usd}
+          defaultModel={data.default_model}
+        />
       </div>
 
       <div className="rise" style={{ animationDelay: "40ms" }}>

@@ -46,6 +46,8 @@ type Querier interface {
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
 	UpsertUserProviderKey(ctx context.Context, arg UpsertUserProviderKeyParams) error
 	UpsertUserRouting(ctx context.Context, arg UpsertUserRoutingParams) error
+	// ── Per-user demo budget (operator-funded spend only) ─────────────────────────
+	UserOperatorSpend(ctx context.Context, userID int64) (float64, error)
 }
 
 var _ Querier = (*Queries)(nil)

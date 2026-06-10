@@ -17,9 +17,12 @@ import (
 // SettingsHandler manages per-user LLM routing + BYO provider keys.
 // GET never returns key material; keys are only decrypted worker-side over gRPC.
 type SettingsHandler struct {
-	Q      *store.Queries
-	Crypto *identity.Crypto
-	Log    *slog.Logger
+	Q               *store.Queries
+	Crypto          *identity.Crypto
+	Log             *slog.Logger
+	CapUSD          float64
+	DefaultProvider string
+	DefaultModel    string
 }
 
 func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -41,11 +44,28 @@ func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		providers = append(providers, apitypes.ProviderStatus{Name: p, HasKey: have[p]})
 	}
 
+	// Demo budget surface: effective default provider, whether the user self-funds
+	// it, and their operator-funded spend so far.
+	effProvider := h.DefaultProvider
+	if d, ok := routing["_default"]; ok && d.Provider != "" {
+		effProvider = d.Provider
+	}
+	usingOwnKey := have[effProvider]
+	var usage float64
+	if h.CapUSD > 0 {
+		usage, _ = h.Q.UserOperatorSpend(r.Context(), claims.UserID)
+	}
+
 	respond.OK(w, r, apitypes.SettingsResponse{
-		Routing:   routing,
-		Providers: providers,
-		Catalog:   apitypes.Catalog,
-		Roles:     apitypes.Roles,
+		Routing:            routing,
+		Providers:          providers,
+		Catalog:            apitypes.Catalog,
+		Roles:              apitypes.Roles,
+		DefaultModel:       h.DefaultModel,
+		SharedKeyAvailable: h.CapUSD > 0,
+		CapUSD:             h.CapUSD,
+		UsageUSD:           usage,
+		UsingOwnKey:        usingOwnKey,
 	})
 }
 

@@ -104,8 +104,14 @@ func run() error {
 		cfg.GithubClientID, cfg.GithubClientSecret, cfg.GithubRedirectURL,
 		cfg.WebBaseURL, cfg.GithubAppInstallURL, cfg.CookieSecure, cfg.CookieDomain)
 
-	goalsH := &handlers.GoalsHandler{Q: q, Crypto: crypto, Worker: worker, Log: log}
-	settingsH := &handlers.SettingsHandler{Q: q, Crypto: crypto, Log: log}
+	goalsH := &handlers.GoalsHandler{
+		Q: q, Crypto: crypto, Worker: worker, Log: log,
+		CapUSD: cfg.DemoUserCapUSD, DefaultProvider: cfg.DemoDefaultProvider,
+	}
+	settingsH := &handlers.SettingsHandler{
+		Q: q, Crypto: crypto, Log: log,
+		CapUSD: cfg.DemoUserCapUSD, DefaultProvider: cfg.DemoDefaultProvider, DefaultModel: cfg.DemoDefaultModel,
+	}
 	sseH := &sse.Handler{Redis: rdb, Log: log}
 
 	router := gateway.NewRouter(gateway.Deps{
